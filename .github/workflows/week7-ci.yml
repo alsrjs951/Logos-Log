@@ -1,0 +1,50 @@
+name: Week7 CI — Lint & Test (Matrix)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'week7/**'
+      - '.github/workflows/week7-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'week7/**'
+      - '.github/workflows/week7-ci.yml'
+
+jobs:
+  lint-test:
+    name: "[${{ matrix.os }} / Node ${{ matrix.node-version }}] Lint & Test"
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18.x', '20.x']
+        os: [ubuntu-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: week7
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Tests
+        run: npm test
+        env:
+          # Secrets를 환경변수로 안전하게 주입
+          APP_ENV: ${{ secrets.APP_ENV }}
+          API_KEY: ${{ secrets.API_KEY }}

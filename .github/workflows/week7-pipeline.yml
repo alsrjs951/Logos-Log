@@ -1,0 +1,113 @@
+name: Week7 Pipeline — Build → Test → Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'week7/**'
+      - '.github/workflows/week7-pipeline.yml'
+  workflow_dispatch:
+
+jobs:
+  # ── 1단계: Build ─────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        working-directory: week7
+        run: npm install
+
+      - name: Run ESLint (build gate)
+        working-directory: week7
+        run: npm run lint
+
+      - name: Build
+        working-directory: week7
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: week7-dist
+          path: week7/dist/
+          retention-days: 1
+
+  # ── 2단계: Test (빌드 산출물 다운로드 후 테스트) ──────────────────────────────
+  test:
+    name: Test
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: week7-dist
+          path: week7/dist/
+
+      - name: Verify artifact contents
+        run: |
+          echo "── dist/ 아티팩트 내용 ──"
+          ls -la week7/dist/
+          cat week7/dist/build-info.json
+
+      - name: Install dependencies
+        working-directory: week7
+        run: npm install
+
+      - name: Run Tests
+        working-directory: week7
+        run: npm test
+        env:
+          # Secrets를 환경변수로 안전하게 주입
+          APP_ENV: ${{ secrets.APP_ENV }}
+          API_KEY: ${{ secrets.API_KEY }}
+
+  # ── 3단계: Deploy (테스트 통과 후 배포) ──────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: week7-dist
+          path: dist/
+
+      - name: Deploy (simulated)
+        run: |
+          echo "=============================="
+          echo "  Deploying week7-ci-demo"
+          echo "=============================="
+          echo "Target env : $APP_ENV"
+          echo "Artifact contents:"
+          ls -la dist/
+          echo ""
+          echo "build-info:"
+          cat dist/build-info.json
+          echo ""
+          echo "Deploy complete. (Simulated — replace with real deploy step)"
+        env:
+          # 배포용 시크릿 주입 (실제 환경에서는 서버 SSH키, 클라우드 토큰 등)
+          APP_ENV: ${{ secrets.APP_ENV }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
