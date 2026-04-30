@@ -160,13 +160,12 @@ echo "elapsed=${ELAPSED}" >> $GITHUB_OUTPUT
 
 | 구분 | 소요 시간 |
 |------|-----------|
-| 캐시 없음 | **~18,000 ms** |
-| 캐시 있음 (hit) | **~150 ms** |
-| 절감 시간 | ~17,850 ms |
-| **개선률** | **~99%** |
+| 캐시 없음 (no-cache) | **13,662 ms** |
+| 캐시 있음 (cache-hit: true) | **2 ms** |
+| 절감 시간 | 13,660 ms |
+| **개선률** | **99%** |
 
-> 실제 수치는 Actions 실행 요약 페이지에서 확인 가능합니다.
-> [Benchmark 실행 내역](https://github.com/alsrjs951/Logos-Log/actions/workflows/week8-cache-benchmark.yml)
+> [Benchmark 실행 내역 (Step Summary 포함)](https://github.com/alsrjs951/Logos-Log/actions/workflows/week8-cache-benchmark.yml)
 
 ---
 
