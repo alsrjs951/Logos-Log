@@ -190,11 +190,20 @@ npm run build
 
 ## GitHub Actions 링크
 
-| 항목 | URL |
-|------|-----|
-| CI 워크플로우 yml | [week7-ci.yml](https://github.com/alsrjs951/Logos-Log/blob/main/.github/workflows/week7-ci.yml) |
-| Pipeline 워크플로우 yml | [week7-pipeline.yml](https://github.com/alsrjs951/Logos-Log/blob/main/.github/workflows/week7-pipeline.yml) |
-| Actions 실행 내역 | [GitHub Actions](https://github.com/alsrjs951/Logos-Log/actions) |
+### Workflow yml 파일
+
+| 워크플로우 | 파일 링크 |
+|-----------|-----------|
+| CI — Lint & Test (Matrix) | [week7-ci.yml](https://github.com/alsrjs951/Logos-Log/blob/main/.github/workflows/week7-ci.yml) |
+| Pipeline — Build → Test → Deploy | [week7-pipeline.yml](https://github.com/alsrjs951/Logos-Log/blob/main/.github/workflows/week7-pipeline.yml) |
+
+### Actions 실행 내역
+
+| 항목 | 링크 |
+|------|------|
+| 전체 Actions 실행 내역 | [Actions 탭](https://github.com/alsrjs951/Logos-Log/actions) |
+| Week7 CI 실행 내역 | [Week7 CI — Lint & Test (Matrix)](https://github.com/alsrjs951/Logos-Log/actions/workflows/week7-ci.yml) |
+| Week7 Pipeline 실행 내역 | [Week7 Pipeline — Build → Test → Deploy](https://github.com/alsrjs951/Logos-Log/actions/workflows/week7-pipeline.yml) |
 
 ---
 
