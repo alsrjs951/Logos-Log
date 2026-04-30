@@ -12,6 +12,11 @@ on:
     # 매주 월요일 오전 9시(UTC)에 주간 요약 실행
     - cron: '0 9 * * 1'
 
+# 동시 실행을 막아 metrics 브랜치 충돌을 방지
+concurrency:
+  group: metrics-push-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   issues: write
@@ -177,8 +182,25 @@ jobs:
           cp metrics-artifacts/*.json data/
           git add data/
           git diff --staged --quiet || git commit -m "docs: update DORA metrics [skip ci]"
-          # force-with-lease로 안전하게 푸시 (rebase 후 fast-forward 불가능한 경우 대비)
-          git push origin metrics || git push --force-with-lease origin metrics
+          # 재시도 + 랜덤 지연으로 동시 실행 충돌 방지
+          for i in 1 2 3; do
+            if git push origin metrics 2>/dev/null; then
+              echo "✅ Push successful on attempt $i"
+              break
+            fi
+            echo "⚠️ Push attempt $i failed, rebasing and retrying in $(( RANDOM % 5 + 1 ))s..."
+            sleep $(( RANDOM % 5 + 1 ))
+            git fetch origin metrics
+            git reset --hard origin/metrics
+            mkdir -p data
+            cp metrics-artifacts/*.json data/
+            git add data/
+            git diff --staged --quiet || git commit -m "docs: update DORA metrics [skip ci]"
+            if [ $i -eq 3 ]; then
+              echo "⚠️ Final attempt with force-with-lease"
+              git push --force-with-lease origin metrics
+            fi
+          done
 
   weekly-summary:
     name: Weekly DORA Summary Report
