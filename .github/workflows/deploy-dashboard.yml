@@ -1,0 +1,49 @@
+name: Deploy Dashboard to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/deploy-dashboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Prepare Dashboard for Deployment
+        run: |
+          mkdir -p _site
+          cp dashboard/index.html _site/index.html
+          # 대시보드 전용 README 생성 (선택)
+          echo "# Logos Log — DORA Metrics Dashboard" > _site/README.md
+          echo "" >> _site/README.md
+          echo "[📊 Open Dashboard](https://alsrjs951.github.io/Logos-Log/dashboard/)" >> _site/README.md
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,212 @@
+name: DORA Metrics Collection
+
+on:
+  pull_request:
+    types: [opened, closed, synchronize]
+  push:
+    branches:
+      - main
+      - master
+  deployment_status:
+  schedule:
+    # 매주 월요일 오전 9시(UTC)에 주간 요약 실행
+    - cron: '0 9 * * 1'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+  deployments: read
+  actions: read
+  id-token: write
+
+jobs:
+  collect-metrics:
+    name: Collect DORA Metrics
+    runs-on: ubuntu-latest
+    outputs:
+      lead-time: ${{ steps.calc.outputs.lead_time }}
+      deploy-freq: ${{ steps.calc.outputs.deploy_freq }}
+      mttr: ${{ steps.calc.outputs.mttr }}
+      change-fail-rate: ${{ steps.calc.outputs.change_fail_rate }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 히스토리 필요
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: |
+          npm install -g @octokit/rest@latest
+
+      - name: Calculate DORA Metrics
+        id: calc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          cat << 'SCRIPT' > calc_metrics.mjs
+          import { Octokit } from "@octokit/rest";
+          import { readFileSync, writeFileSync } from "fs";
+
+          const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+          const [owner, repo] = process.env.REPO.split("/");
+
+          // 기준 기간: 최근 7일
+          const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+          // 1. Lead Time for Changes: PR 생성 ~ 머지까지 평균 시간
+          async function getLeadTime() {
+            const { data: prs } = await octokit.pulls.list({
+              owner, repo, state: "closed", sort: "updated", direction: "desc", per_page: 30
+            });
+            const recentPRs = prs.filter(pr => pr.merged_at && new Date(pr.merged_at) > new Date(since));
+            if (recentPRs.length === 0) return { leadTimeHours: 0, count: 0 };
+            const totalHours = recentPRs.reduce((sum, pr) => {
+              const created = new Date(pr.created_at);
+              const merged = new Date(pr.merged_at);
+              return sum + (merged - created) / (1000 * 60 * 60);
+            }, 0);
+            return { leadTimeHours: (totalHours / recentPRs.length).toFixed(2), count: recentPRs.length };
+          }
+
+          // 2. Deployment Frequency: 주간 배포 횟수
+          async function getDeployFreq() {
+            const { data: deployments } = await octokit.repos.listDeployments({
+              owner, repo, per_page: 100
+            });
+            const recentDeploys = deployments.filter(d => new Date(d.created_at) > new Date(since));
+            return recentDeploys.length;
+          }
+
+          // 3. Mean Time to Recovery (MTTR): 이슈 close까지 평균 시간 (장애 이슈 기준)
+          async function getMTTR() {
+            const { data: issues } = await octokit.issues.listForRepo({
+              owner, repo, state: "closed", labels: "bug,incident", sort: "updated", direction: "desc", per_page: 30
+            });
+            const recentIssues = issues.filter(i => i.closed_at && new Date(i.closed_at) > new Date(since) && !i.pull_request);
+            if (recentIssues.length === 0) return { mttrHours: 0, count: 0 };
+            const totalHours = recentIssues.reduce((sum, issue) => {
+              const created = new Date(issue.created_at);
+              const closed = new Date(issue.closed_at);
+              return sum + (closed - created) / (1000 * 60 * 60);
+            }, 0);
+            return { mttrHours: (totalHours / recentIssues.length).toFixed(2), count: recentIssues.length };
+          }
+
+          // 4. Change Failure Rate: 실패한 워크플로우 비율
+          async function getChangeFailRate() {
+            const { data: runs } = await octokit.actions.listWorkflowRunsForRepo({
+              owner, repo, status: "completed", per_page: 50
+            });
+            const recentRuns = runs.workflow_runs.filter(r => new Date(r.created_at) > new Date(since));
+            if (recentRuns.length === 0) return { failRate: "0.00", total: 0, failed: 0 };
+            const failed = recentRuns.filter(r => r.conclusion === "failure").length;
+            return { failRate: ((failed / recentRuns.length) * 100).toFixed(2), total: recentRuns.length, failed };
+          }
+
+          async function main() {
+            const [leadTime, deployFreq, mttr, changeFailRate] = await Promise.all([
+              getLeadTime(), getDeployFreq(), getMTTR(), getChangeFailRate()
+            ]);
+
+            const metrics = {
+              generatedAt: new Date().toISOString(),
+              period: { since, until: new Date().toISOString() },
+              doraMetrics: {
+                leadTimeForChanges: { hours: leadTime.leadTimeHours, prCount: leadTime.count },
+                deploymentFrequency: { weeklyDeployments: deployFreq },
+                meanTimeToRecovery: { hours: mttr.mttrHours, incidentCount: mttr.count },
+                changeFailureRate: { percentage: changeFailRate.failRate, totalRuns: changeFailRate.total, failedRuns: changeFailRate.failed }
+              }
+            };
+
+            const dir = "metrics-artifacts";
+            try { await import("fs/promises").then(fs => fs.mkdir(dir, { recursive: true })); } catch (e) {}
+            const filename = `${dir}/dora-metrics-${new Date().toISOString().slice(0, 10)}.json`;
+            writeFileSync(filename, JSON.stringify(metrics, null, 2));
+
+            // GitHub Actions Outputs
+            console.log("DORA Metrics Summary:");
+            console.log(JSON.stringify(metrics, null, 2));
+
+            // 출력 파라미터 설정 (GitHub Actions outputs)
+            console.log(`::set-output name=lead_time::${leadTime.leadTimeHours}h (${leadTime.count} PRs)`);
+            console.log(`::set-output name=deploy_freq::${deployFreq} deploys/week`);
+            console.log(`::set-output name=mttr::${mttr.mttrHours}h (${mttr.count} incidents)`);
+            console.log(`::set-output name=change_fail_rate::${changeFailRate.failRate}%`);
+          }
+
+          main().catch(err => { console.error(err); process.exit(1); });
+          SCRIPT
+
+          node calc_metrics.mjs
+
+      - name: Upload Metrics Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dora-metrics
+          path: metrics-artifacts/
+          retention-days: 90
+
+      - name: Commit Metrics to metrics Branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # metrics 브랜치가 없으면 orphan으로 생성
+          if git show-ref --verify --quiet refs/heads/metrics; then
+            git fetch origin metrics
+            git checkout metrics
+            git pull origin metrics
+          else
+            git checkout --orphan metrics
+            git rm -rf . || true
+          fi
+          mkdir -p data
+          cp metrics-artifacts/*.json data/
+          git add data/
+          git diff --staged --quiet || git commit -m "docs: update DORA metrics [skip ci]"
+          git push origin metrics
+
+  weekly-summary:
+    name: Weekly DORA Summary Report
+    runs-on: ubuntu-latest
+    needs: collect-metrics
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Metrics Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dora-metrics
+          path: metrics-artifacts/
+
+      - name: Generate Summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## 📊 DORA Metrics Weekly Summary" > summary.md
+          echo "" >> summary.md
+          echo "| Metric | Value |" >> summary.md
+          echo "|--------|-------|" >> summary.md
+          echo "| Lead Time for Changes | ${{ needs.collect-metrics.outputs.lead-time }} |" >> summary.md
+          echo "| Deployment Frequency | ${{ needs.collect-metrics.outputs.deploy-freq }} |" >> summary.md
+          echo "| Mean Time to Recovery | ${{ needs.collect-metrics.outputs.mttr }} |" >> summary.md
+          echo "| Change Failure Rate | ${{ needs.collect-metrics.outputs.change-fail-rate }} |" >> summary.md
+          echo "" >> summary.md
+          echo "📅 Generated: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> summary.md
+
+      - name: Create Weekly Issue
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "📊 DORA Metrics Weekly Summary - $(date +'%Y-%m-%d')"
+          content-filepath: ./summary.md
+          labels: metrics, automated
