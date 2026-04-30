@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          npm install -g @octokit/rest@latest
+          npm install @octokit/rest@latest
 
       - name: Calculate DORA Metrics
         id: calc
@@ -53,7 +53,7 @@ jobs:
         run: |
           cat << 'SCRIPT' > calc_metrics.mjs
           import { Octokit } from "@octokit/rest";
-          import { readFileSync, writeFileSync } from "fs";
+          import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from "fs";
 
           const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
           const [owner, repo] = process.env.REPO.split("/");
@@ -128,7 +128,7 @@ jobs:
             };
 
             const dir = "metrics-artifacts";
-            try { await import("fs/promises").then(fs => fs.mkdir(dir, { recursive: true })); } catch (e) {}
+            mkdirSync(dir, { recursive: true });
             const filename = `${dir}/dora-metrics-${new Date().toISOString().slice(0, 10)}.json`;
             writeFileSync(filename, JSON.stringify(metrics, null, 2));
 
@@ -137,10 +137,11 @@ jobs:
             console.log(JSON.stringify(metrics, null, 2));
 
             // 출력 파라미터 설정 (GitHub Actions outputs)
-            console.log(`::set-output name=lead_time::${leadTime.leadTimeHours}h (${leadTime.count} PRs)`);
-            console.log(`::set-output name=deploy_freq::${deployFreq} deploys/week`);
-            console.log(`::set-output name=mttr::${mttr.mttrHours}h (${mttr.count} incidents)`);
-            console.log(`::set-output name=change_fail_rate::${changeFailRate.failRate}%`);
+            const outputFile = process.env.GITHUB_OUTPUT;
+            appendFileSync(outputFile, `lead_time=${leadTime.leadTimeHours}h (${leadTime.count} PRs)\n`);
+            appendFileSync(outputFile, `deploy_freq=${deployFreq} deploys/week\n`);
+            appendFileSync(outputFile, `mttr=${mttr.mttrHours}h (${mttr.count} incidents)\n`);
+            appendFileSync(outputFile, `change_fail_rate=${changeFailRate.failRate}%\n`);
           }
 
           main().catch(err => { console.error(err); process.exit(1); });
