@@ -12,9 +12,9 @@ on:
     # 매주 월요일 오전 9시(UTC)에 주간 요약 실행
     - cron: '0 9 * * 1'
 
-# 동시 실행을 막아 metrics 브랜치 충돌을 방지
+# metrics 브랜치 push를 직렬화해 race condition 방지 (ref 무관하게 단일 그룹)
 concurrency:
-  group: metrics-push-${{ github.workflow }}-${{ github.ref }}
+  group: metrics-branch-push
   cancel-in-progress: false
 
 permissions:
@@ -165,15 +165,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # metrics 브랜치가 없으면 orphan으로 생성
           if git ls-remote --exit-code origin metrics > /dev/null 2>&1; then
             git fetch origin metrics
             git checkout -B metrics origin/metrics
-            # 동시 실행으로 인한 non-fast-forward 방지: 원격 최신 변경사항 rebase
-            git pull --rebase origin metrics || {
-              echo "⚠️ Rebase conflict, force-reset to remote latest"
-              git reset --hard origin/metrics
-            }
           else
             git checkout --orphan metrics
             git rm -rf . 2>/dev/null || true
@@ -182,25 +176,7 @@ jobs:
           cp metrics-artifacts/*.json data/
           git add data/
           git diff --staged --quiet || git commit -m "docs: update DORA metrics [skip ci]"
-          # 재시도 + 랜덤 지연으로 동시 실행 충돌 방지
-          for i in 1 2 3; do
-            if git push origin metrics 2>/dev/null; then
-              echo "✅ Push successful on attempt $i"
-              break
-            fi
-            echo "⚠️ Push attempt $i failed, rebasing and retrying in $(( RANDOM % 5 + 1 ))s..."
-            sleep $(( RANDOM % 5 + 1 ))
-            git fetch origin metrics
-            git reset --hard origin/metrics
-            mkdir -p data
-            cp metrics-artifacts/*.json data/
-            git add data/
-            git diff --staged --quiet || git commit -m "docs: update DORA metrics [skip ci]"
-            if [ $i -eq 3 ]; then
-              echo "⚠️ Final attempt with force-with-lease"
-              git push --force-with-lease origin metrics
-            fi
-          done
+          git push --force-with-lease origin metrics
 
   weekly-summary:
     name: Weekly DORA Summary Report
