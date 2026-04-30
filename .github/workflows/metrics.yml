@@ -161,13 +161,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # metrics 브랜치가 없으면 orphan으로 생성
-          if git show-ref --verify --quiet refs/heads/metrics; then
+          if git ls-remote --exit-code origin metrics > /dev/null 2>&1; then
             git fetch origin metrics
-            git checkout metrics
-            git pull origin metrics
+            git checkout -B metrics origin/metrics
           else
             git checkout --orphan metrics
-            git rm -rf . || true
+            git rm -rf . 2>/dev/null || true
           fi
           mkdir -p data
           cp metrics-artifacts/*.json data/
