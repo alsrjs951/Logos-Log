@@ -1,0 +1,20 @@
+{
+  "name": "week8-ci-advanced",
+  "version": "1.0.0",
+  "description": "Week 8 — Reusable Workflow, Composite Action, Cache Optimization, Selective Deploy",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "lint": "eslint src/ --ext .js",
+    "test": "jest --coverage",
+    "build": "node scripts/build.js"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": ["src/**/*.js", "!src/**/*.test.js"]
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0"
+  }
+}

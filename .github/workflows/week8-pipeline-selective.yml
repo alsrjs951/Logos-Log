@@ -1,0 +1,131 @@
+name: "Week8 Pipeline — Selective Deploy"
+
+on:
+  push:
+    branches: [main, 'feature/**', 'release/**']
+    paths: ['week8/**']
+  pull_request:
+    branches: [main]
+    paths: ['week8/**']
+
+jobs:
+  # ── 변경 파일 감지 ────────────────────────────────────────────────────────────
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    outputs:
+      src-changed: ${{ steps.changes.outputs.src_changed }}
+      config-changed: ${{ steps.changes.outputs.config_changed }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed files
+        id: changes
+        run: |
+          # PR이면 base...head, push면 HEAD~1..HEAD 비교
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CHANGED=$(git diff --name-only \
+              ${{ github.event.pull_request.base.sha }} \
+              ${{ github.event.pull_request.head.sha }} 2>/dev/null || echo "week8/")
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "week8/")
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          SRC="false"
+          CFG="false"
+          echo "$CHANGED" | grep -q "^week8/src/"               && SRC="true"
+          echo "$CHANGED" | grep -qE "^week8/(package\.json|\.eslintrc\.json)" && CFG="true"
+
+          echo "src_changed=${SRC}"    >> $GITHUB_OUTPUT
+          echo "config_changed=${CFG}" >> $GITHUB_OUTPUT
+          echo "::notice::src-changed=${SRC}, config-changed=${CFG}"
+
+  # ── Lint & Test (소스 또는 설정이 변경된 경우에만 실행) ──────────────────────
+  lint-test:
+    name: Lint & Test
+    needs: detect-changes
+    if: needs.detect-changes.outputs.src-changed == 'true' || needs.detect-changes.outputs.config-changed == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (cached)
+        uses: ./.github/actions/setup-node-cached
+        with:
+          node-version: '20.x'
+          working-directory: week8
+
+      - name: Lint
+        working-directory: week8
+        run: npm run lint
+
+      - name: Test
+        working-directory: week8
+        run: npm test
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+
+  # ── Build (lint-test 통과 후) ─────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: lint-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (cached)
+        uses: ./.github/actions/setup-node-cached
+        with:
+          node-version: '20.x'
+          working-directory: week8
+
+      - name: Build
+        working-directory: week8
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: week8-dist
+          path: week8/dist/
+          retention-days: 1
+
+  # ── Deploy (main 브랜치 push + lint-test 성공 시에만) ─────────────────────────
+  deploy:
+    name: Deploy
+    needs: build
+    # 조건 1: main 브랜치에 직접 push된 경우만 (PR·feature 브랜치는 제외)
+    # 조건 2: build job이 성공한 경우만
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: week8-dist
+          path: dist/
+
+      - name: Deploy (simulated)
+        run: |
+          echo "======================================"
+          echo "  Branch : ${{ github.ref_name }}"
+          echo "  Commit : ${{ github.sha }}"
+          echo "  Env    : $APP_ENV"
+          echo "======================================"
+          echo "Artifact contents:"
+          ls -la dist/
+          cat dist/build-info.json
+          echo ""
+          echo "Deploy complete. (Simulated)"
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}

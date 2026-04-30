@@ -1,0 +1,38 @@
+name: "Week8 CI — Extended Matrix"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'week8/**'
+      - '.github/workflows/week8-ci-matrix.yml'
+      - '.github/workflows/week8-reusable-lint-test.yml'
+      - '.github/actions/setup-node-cached/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'week8/**'
+
+jobs:
+  lint-test:
+    name: "Node ${{ matrix.node-version }} / ${{ matrix.os }}"
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18.x', '20.x', '22.x']
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        exclude:
+          # 비용 절감: macOS는 LTS(20.x)만 테스트
+          - os: macos-latest
+            node-version: '18.x'
+          - os: macos-latest
+            node-version: '22.x'
+
+    # Reusable Workflow 호출 — Matrix 각 조합이 독립 Job으로 실행됨
+    uses: ./.github/workflows/week8-reusable-lint-test.yml
+    with:
+      node-version: ${{ matrix.node-version }}
+      working-directory: week8
+    secrets:
+      APP_ENV: ${{ secrets.APP_ENV }}
+      API_KEY: ${{ secrets.API_KEY }}

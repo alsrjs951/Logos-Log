@@ -1,0 +1,114 @@
+name: "Week8 Cache Benchmark"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # ── Step 1: 캐시 워밍 (with-cache 잡이 히트할 수 있도록 먼저 실행) ────────────
+  warm-cache:
+    name: "Step 1: Warm Cache"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: week8/node_modules
+          key: benchmark-${{ runner.os }}-${{ hashFiles('week8/package.json') }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Install (cache miss — warming cache)
+        working-directory: week8
+        run: npm install
+
+  # ── Step 2-A: 캐시 없이 측정 (warm-cache와 병렬 시작 불가 — 독립 실행) ───────
+  benchmark-no-cache:
+    name: "Benchmark: No Cache"
+    runs-on: ubuntu-latest
+    outputs:
+      elapsed: ${{ steps.measure.outputs.elapsed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Measure install time (no cache)
+        id: measure
+        working-directory: week8
+        run: |
+          START=$(date +%s%3N)
+          npm install
+          END=$(date +%s%3N)
+          ELAPSED=$((END - START))
+          echo "elapsed=${ELAPSED}" >> $GITHUB_OUTPUT
+          echo "::notice::No-cache install time: ${ELAPSED} ms"
+
+  # ── Step 2-B: 캐시 히트로 측정 (warm-cache 완료 후 실행) ─────────────────────
+  benchmark-with-cache:
+    name: "Benchmark: With Cache (cache hit)"
+    needs: warm-cache
+    runs-on: ubuntu-latest
+    outputs:
+      elapsed: ${{ steps.measure.outputs.elapsed }}
+      cache-hit: ${{ steps.cache.outputs.cache-hit }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: week8/node_modules
+          key: benchmark-${{ runner.os }}-${{ hashFiles('week8/package.json') }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Measure install time (with cache)
+        id: measure
+        working-directory: week8
+        run: |
+          START=$(date +%s%3N)
+          if [ "${{ steps.cache.outputs.cache-hit }}" = "true" ]; then
+            echo "Cache HIT — skipping npm install"
+          else
+            npm install
+          fi
+          END=$(date +%s%3N)
+          ELAPSED=$((END - START))
+          echo "elapsed=${ELAPSED}" >> $GITHUB_OUTPUT
+          echo "::notice::With-cache install time: ${ELAPSED} ms (hit=${{ steps.cache.outputs.cache-hit }})"
+
+  # ── Step 3: 비교 리포트 ────────────────────────────────────────────────────────
+  report:
+    name: "Benchmark Report"
+    needs: [benchmark-no-cache, benchmark-with-cache]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate comparison report
+        run: |
+          NO_CACHE=${{ needs.benchmark-no-cache.outputs.elapsed }}
+          WITH_CACHE=${{ needs.benchmark-with-cache.outputs.elapsed }}
+          CACHE_HIT=${{ needs.benchmark-with-cache.outputs.cache-hit }}
+
+          if [ "${NO_CACHE}" -gt 0 ]; then
+            SAVED=$((NO_CACHE - WITH_CACHE))
+            IMPROVEMENT=$((SAVED * 100 / NO_CACHE))
+          else
+            SAVED=0
+            IMPROVEMENT=0
+          fi
+
+          # Actions 실행 요약 페이지에 표시됨
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## Cache Benchmark Report
+
+          | 구분 | 소요 시간 |
+          |------|-----------|
+          | 캐시 없음 (no-cache) | **${NO_CACHE} ms** |
+          | 캐시 있음 (cache-hit: ${CACHE_HIT}) | **${WITH_CACHE} ms** |
+          | 절감 시간 | ${SAVED} ms |
+          | **개선률** | **${IMPROVEMENT}%** |
+
+          > Node.js 20.x / ubuntu-latest / week8 프로젝트 기준
+          EOF
+
+          echo "::notice::개선률: ${IMPROVEMENT}% (${NO_CACHE}ms → ${WITH_CACHE}ms)"

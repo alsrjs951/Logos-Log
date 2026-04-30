@@ -1,0 +1,42 @@
+name: Setup Node.js with Cache
+description: >
+  Setup Node.js, restore node_modules from cache, and install dependencies
+  only on a cache miss. Eliminates duplicate setup steps across workflows.
+
+inputs:
+  node-version:
+    description: Node.js version to use
+    required: false
+    default: '20.x'
+  working-directory:
+    description: Directory containing package.json
+    required: false
+    default: '.'
+
+outputs:
+  cache-hit:
+    description: Whether the node_modules cache was restored
+    value: ${{ steps.cache.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js ${{ inputs.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Restore node_modules cache
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.working-directory }}/node_modules
+        key: ${{ runner.os }}-node${{ inputs.node-version }}-${{ hashFiles(format('{0}/package.json', inputs.working-directory)) }}
+        restore-keys: |
+          ${{ runner.os }}-node${{ inputs.node-version }}-
+
+    - name: Install dependencies (cache miss only)
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm install

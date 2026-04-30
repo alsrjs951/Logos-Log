@@ -1,0 +1,45 @@
+name: "Reusable — Lint & Test"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: string
+        default: '20.x'
+      working-directory:
+        description: Directory containing package.json
+        type: string
+        default: 'week8'
+    secrets:
+      APP_ENV:
+        required: false
+      API_KEY:
+        required: false
+
+jobs:
+  lint-test:
+    name: "Lint & Test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Composite Action으로 setup + cache + install 3단계를 1단계로 압축
+      - name: Setup Node (cached)
+        uses: ./.github/actions/setup-node-cached
+        with:
+          node-version: ${{ inputs.node-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Run ESLint
+        working-directory: ${{ inputs.working-directory }}
+        run: npm run lint
+
+      - name: Run Tests
+        working-directory: ${{ inputs.working-directory }}
+        run: npm test
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+          API_KEY: ${{ secrets.API_KEY }}
