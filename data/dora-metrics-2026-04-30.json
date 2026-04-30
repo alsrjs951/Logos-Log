@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-04-30T14:07:18.165Z",
+  "generatedAt": "2026-04-30T14:07:50.347Z",
   "period": {
-    "since": "2026-04-23T14:07:16.589Z",
-    "until": "2026-04-30T14:07:18.165Z"
+    "since": "2026-04-23T14:07:49.665Z",
+    "until": "2026-04-30T14:07:50.347Z"
   },
   "doraMetrics": {
     "leadTimeForChanges": {
-      "hours": "0.22",
-      "prCount": 1
+      "hours": "0.23",
+      "prCount": 2
     },
     "deploymentFrequency": {
       "weeklyDeployments": 0
@@ -17,8 +17,8 @@
       "incidentCount": 0
     },
     "changeFailureRate": {
-      "percentage": "50.00",
-      "totalRuns": 14,
+      "percentage": "46.67",
+      "totalRuns": 15,
       "failedRuns": 7
     }
   }
