@@ -3,10 +3,10 @@ name: "Week8 Pipeline — Selective Deploy"
 on:
   push:
     branches: [main, 'feature/**', 'release/**']
-    paths: ['week8/**']
+    paths: ['assignments/week8/**']
   pull_request:
     branches: [main]
-    paths: ['week8/**']
+    paths: ['assignments/week8/**']
 
 jobs:
   # ── 변경 파일 감지 ────────────────────────────────────────────────────────────
@@ -29,9 +29,9 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED=$(git diff --name-only \
               ${{ github.event.pull_request.base.sha }} \
-              ${{ github.event.pull_request.head.sha }} 2>/dev/null || echo "week8/")
+              ${{ github.event.pull_request.head.sha }} 2>/dev/null || echo "assignments/week8/")
           else
-            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "week8/")
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "assignments/week8/")
           fi
 
           echo "Changed files:"
@@ -39,8 +39,8 @@ jobs:
 
           SRC="false"
           CFG="false"
-          echo "$CHANGED" | grep -q "^week8/src/"               && SRC="true"
-          echo "$CHANGED" | grep -qE "^week8/(package\.json|\.eslintrc\.json)" && CFG="true"
+          echo "$CHANGED" | grep -q "^assignments/week8/src/"               && SRC="true"
+          echo "$CHANGED" | grep -qE "^assignments/week8/(package\.json|\.eslintrc\.json)" && CFG="true"
 
           echo "src_changed=${SRC}"    >> $GITHUB_OUTPUT
           echo "config_changed=${CFG}" >> $GITHUB_OUTPUT
@@ -60,14 +60,14 @@ jobs:
         uses: ./.github/actions/setup-node-cached
         with:
           node-version: '20.x'
-          working-directory: week8
+          working-directory: assignments/week8
 
       - name: Lint
-        working-directory: week8
+        working-directory: assignments/week8
         run: npm run lint
 
       - name: Test
-        working-directory: week8
+        working-directory: assignments/week8
         run: npm test
         env:
           APP_ENV: ${{ secrets.APP_ENV }}
@@ -85,17 +85,17 @@ jobs:
         uses: ./.github/actions/setup-node-cached
         with:
           node-version: '20.x'
-          working-directory: week8
+          working-directory: assignments/week8
 
       - name: Build
-        working-directory: week8
+        working-directory: assignments/week8
         run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: week8-dist
-          path: week8/dist/
+          path: assignments/week8/dist/
           retention-days: 1
 
   # ── Deploy (main 브랜치 push + lint-test 성공 시에만) ─────────────────────────

@@ -10,7 +10,7 @@ on:
       working-directory:
         description: Directory containing package.json
         type: string
-        default: 'week8'
+        default: 'assignments/week8'
     secrets:
       APP_ENV:
         required: false

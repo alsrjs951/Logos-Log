@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'week8/**'
+      - 'assignments/week8/**'
       - '.github/workflows/week8-ci-matrix.yml'
       - '.github/workflows/week8-reusable-lint-test.yml'
       - '.github/actions/setup-node-cached/**'
   pull_request:
     branches: [main]
     paths:
-      - 'week8/**'
+      - 'assignments/week8/**'
 
 jobs:
   lint-test:
@@ -32,7 +32,7 @@ jobs:
     uses: ./.github/workflows/week8-reusable-lint-test.yml
     with:
       node-version: ${{ matrix.node-version }}
-      working-directory: week8
+      working-directory: assignments/week8
     secrets:
       APP_ENV: ${{ secrets.APP_ENV }}
       API_KEY: ${{ secrets.API_KEY }}
