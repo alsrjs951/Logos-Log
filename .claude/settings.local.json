@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "Bash(gh label *)",
+      "Bash(gh milestone *)",
+      "Bash(gh api *)",
+      "Bash(gh project *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(python3 -c \"import sys,json; ms=json.load\\(sys.stdin\\); [print\\(m['number'], m['title']\\) for m in ms]\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'총 {len\\(d[\\\\\"items\\\\\"]\\)}개 이슈 추가됨'\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(gh issue *)",
+      "Bash(git ls-remote *)",
+      "Read(//c/Projects/wiki-temp/**)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git cherry-pick *)",
+      "Bash(gh run *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Projects\\wiki-temp"
+    ]
+  }
+}

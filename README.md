@@ -156,15 +156,20 @@ Logos-Log/
 ├── .github/
 │   ├── workflows/          # GitHub Actions (DORA 메트릭, 배포)
 │   └── ISSUE_TEMPLATE/     # 이슈 템플릿 (Bug / Feature)
+├── assignments/            # 주차별 과제 결과물
+│   ├── week1/
+│   ├── week2/
+│   ├── ...
+│   └── week8/
 ├── dashboard/              # DORA 메트릭 정적 대시보드
 ├── project/                # 프로젝트 문서
 ├── scripts/                # Kibana 대시보드 임포트 스크립트
-├── week1~week8/            # 주차별 과제 결과물
 ├── docker-compose-es.yml
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
 └── LICENSE
 ```
+
 
 ---
 
