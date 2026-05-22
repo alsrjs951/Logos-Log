@@ -5,6 +5,8 @@ from tqdm import tqdm
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
+from tenacity import retry, wait_exponential, stop_after_attempt
+from langchain_openai import OpenAIEmbeddings
 
 # Load environment variables (API Key)
 load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
@@ -38,9 +40,20 @@ def main():
     # 2. 임베딩 모델 설정
     embeddings_model = OpenAIEmbeddings(model="text-embedding-3-small")
 
+    @retry(wait=wait_exponential(multiplier=1, min=2, max=20), stop=stop_after_attempt(5))
+    def embed_with_retry(chunks):
+        return embeddings_model.embed_documents(chunks)
+
     print(f"총 {len(json_files)}개의 문서를 청킹하고 임베딩합니다...")
 
     for file in tqdm(json_files):
+        out_filename = file.replace('.json', '_embedded.json')
+        out_path = os.path.join(EMBEDDING_DIR, out_filename)
+        
+        # 이미 임베딩된 파일은 건너뛰기
+        if os.path.exists(out_path):
+            continue
+            
         file_path = os.path.join(PROCESSED_DIR, file)
         
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -53,25 +66,25 @@ def main():
         # 청크로 분할
         chunks = text_splitter.split_text(content)
         
-        # 임베딩 생성
-        embeddings = embeddings_model.embed_documents(chunks)
-        
-        # 결과 저장 구조 만들기
-        chunked_data = []
-        for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-            chunked_data.append({
-                "chunk_id": f"{data['filename']}_chunk_{i}",
-                "text": chunk,
-                "metadata": data.get("metadata", {}),
-                "embedding": embedding
-            })
+        try:
+            # 임베딩 생성 (API Rate Limit 에러 시 자동 재시도)
+            embeddings = embed_with_retry(chunks)
             
-        # 로컬 폴더에 저장
-        out_filename = file.replace('.json', '_embedded.json')
-        out_path = os.path.join(EMBEDDING_DIR, out_filename)
-        
-        with open(out_path, 'w', encoding='utf-8') as f:
-            json.dump(chunked_data, f, ensure_ascii=False, indent=2)
+            # 결과 저장 구조 만들기
+            chunked_data = []
+            for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+                chunked_data.append({
+                    "chunk_id": f"{data['filename']}_chunk_{i}",
+                    "text": chunk,
+                    "metadata": data.get("metadata", {}),
+                    "embedding": embedding
+                })
+                
+            # 로컬 폴더에 저장
+            with open(out_path, 'w', encoding='utf-8') as f:
+                json.dump(chunked_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Failed to embed {file} after retries: {e}")
             
     print("청킹 및 임베딩 완료! 결과물이 data/embeddings/ 폴더에 임시 저장되었습니다.")
 

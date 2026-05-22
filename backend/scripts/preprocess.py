@@ -66,9 +66,19 @@ def main():
         print(f"[{RAW_DIR}] 폴더에 처리할 PDF 파일이 없습니다.")
         return
         
-    print(f"총 {len(pdf_files)}개의 PDF 파일을 전처리합니다...")
+    # 상태 추적을 위한 파일
+    TRACK_FILE = os.path.join(PROCESSED_DIR, 'processed_files.json')
+    processed_files = []
+    if os.path.exists(TRACK_FILE):
+        with open(TRACK_FILE, 'r') as f:
+            processed_files = json.load(f)
+            
+    print(f"총 {len(pdf_files)}개의 PDF 중, 이미 처리된 {len(processed_files)}개를 제외하고 진행합니다...")
     
     for file in tqdm(pdf_files):
+        if file in processed_files:
+            continue
+            
         file_path = os.path.join(RAW_DIR, file)
         try:
             processed_data = process_pdf(file_path)
@@ -80,8 +90,13 @@ def main():
             with open(out_path, 'w', encoding='utf-8') as f:
                 json.dump(processed_data, f, ensure_ascii=False, indent=2)
                 
+            processed_files.append(file)
+            # 중간중간 상태 저장 (만약 중간에 뻗어도 재개 가능)
+            with open(TRACK_FILE, 'w') as f:
+                json.dump(processed_files, f)
+                
         except Exception as e:
-            print(f"Error processing {file}: {str(e)}")
+            print(f"Error processing {file} (Skipping): {str(e)}")
             
     print("전처리 완료! 결과물이 data/processed/ 폴더에 저장되었습니다.")
 
