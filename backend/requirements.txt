@@ -1,3 +1,9 @@
-PyMuPDF==1.23.8
-pydantic==2.5.3
-tqdm==4.66.1
+PyMuPDF
+pydantic
+tqdm
+langchain
+langchain-text-splitters
+langchain-openai
+python-dotenv
+tiktoken
+reportlab
