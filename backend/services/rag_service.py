@@ -2,7 +2,7 @@ import os
 import json
 from supabase import create_client, Client
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from typing import AsyncGenerator
 from models.chat import ChatSource
 
@@ -64,12 +64,12 @@ class RAGService:
         ]
         
         # 4. 소스(출처) 데이터를 첫 번째 이벤트로 전송 (클라이언트에서 파싱할 수 있게 특수 포맷 사용)
-        yield f"data: {json.dumps({'type': 'sources', 'data': sources})}\n\n"
+        yield f"data: {json.dumps({'type': 'sources', 'data': sources}, ensure_ascii=False)}\n\n"
         
         # 5. LLM 스트리밍 응답 (한 글자씩 Yield)
         async for chunk in self.llm.astream(messages):
             if chunk.content:
-                yield f"data: {json.dumps({'type': 'chunk', 'data': chunk.content})}\n\n"
+                yield f"data: {json.dumps({'type': 'chunk', 'data': chunk.content}, ensure_ascii=False)}\n\n"
                 
         # 6. 스트리밍 종료 알림
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
