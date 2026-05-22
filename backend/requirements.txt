@@ -8,3 +8,6 @@ python-dotenv
 tiktoken
 reportlab
 supabase
+fastapi
+uvicorn
+sse-starlette
