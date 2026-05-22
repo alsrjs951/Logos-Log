@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-05-22T17:25:33.585Z",
+  "generatedAt": "2026-05-22T17:30:50.725Z",
   "period": {
-    "since": "2026-05-15T17:25:31.952Z",
-    "until": "2026-05-22T17:25:33.585Z"
+    "since": "2026-05-15T17:30:49.484Z",
+    "until": "2026-05-22T17:30:50.725Z"
   },
   "doraMetrics": {
     "leadTimeForChanges": {
@@ -17,8 +17,8 @@
       "incidentCount": 0
     },
     "changeFailureRate": {
-      "percentage": "17.65",
-      "totalRuns": 17,
+      "percentage": "16.67",
+      "totalRuns": 18,
       "failedRuns": 3
     }
   }
