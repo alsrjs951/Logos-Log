@@ -13,6 +13,6 @@ async def chat_endpoint(request: ChatRequest):
     LLM의 답변을 실시간 스트리밍(SSE)으로 반환합니다.
     """
     return StreamingResponse(
-        rag_service.get_streaming_response(request.query),
+        rag_service.get_streaming_response(request.query, request.history),
         media_type="text/event-stream"
     )

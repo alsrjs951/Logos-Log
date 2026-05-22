@@ -1,8 +1,13 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+class ChatHistoryItem(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     query: str
+    history: Optional[List[ChatHistoryItem]] = []
 
 class ChatSource(BaseModel):
     id: str

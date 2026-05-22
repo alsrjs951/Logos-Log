@@ -2,7 +2,7 @@ import os
 import json
 from supabase import create_client, Client
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from typing import AsyncGenerator
 from models.chat import ChatSource
 
@@ -23,7 +23,10 @@ class RAGService:
             streaming=True
         )
 
-    async def get_streaming_response(self, query: str) -> AsyncGenerator[str, None]:
+    async def get_streaming_response(self, query: str, history: list = None) -> AsyncGenerator[str, None]:
+        if history is None:
+            history = []
+            
         # 1. 질문 임베딩
         query_embedding = self.embeddings.embed_query(query)
         
@@ -58,10 +61,17 @@ class RAGService:
             f"--- 제공된 논문 내용 ---\n{context_text}"
         )
         
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=query)
-        ]
+        messages = [SystemMessage(content=system_prompt)]
+        
+        # 이전 대화 내역(히스토리) 추가
+        for h in history:
+            if h.role == "user":
+                messages.append(HumanMessage(content=h.content))
+            elif h.role == "bot":
+                messages.append(AIMessage(content=h.content))
+                
+        # 현재 질문 추가
+        messages.append(HumanMessage(content=query))
         
         # 4. 소스(출처) 데이터를 첫 번째 이벤트로 전송 (클라이언트에서 파싱할 수 있게 특수 포맷 사용)
         yield f"data: {json.dumps({'type': 'sources', 'data': sources}, ensure_ascii=False)}\n\n"

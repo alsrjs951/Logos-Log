@@ -27,6 +27,12 @@ const ChatWindow = () => {
     // 2. 봇의 빈 메시지 추가 (여기에 스트리밍 데이터를 붙여넣을 예정)
     setMessages(prev => [...prev, { role: 'bot', content: '', sources: [] }]);
 
+    // 최근 대화 맥락 추출 (첫 인사말 제외, 현재 질문 제외, 최대 10개)
+    const historyData = messages
+      .slice(1)
+      .map(msg => ({ role: msg.role, content: msg.content }))
+      .slice(-10);
+
     try {
       // 3. 백엔드 API (SSE) 호출
       const response = await fetch('http://localhost:8000/api/chat', {
@@ -34,7 +40,7 @@ const ChatWindow = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query })
+        body: JSON.stringify({ query, history: historyData })
       });
 
       if (!response.body) throw new Error('ReadableStream not supported.');
