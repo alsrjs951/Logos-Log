@@ -63,14 +63,18 @@ const ChatWindow = () => {
                   // 출처(Source) 데이터 업데이트
                   setMessages(prev => {
                     const newMessages = [...prev];
-                    newMessages[newMessages.length - 1].sources = parsedData.data;
+                    const lastMessage = { ...newMessages[newMessages.length - 1] };
+                    lastMessage.sources = parsedData.data;
+                    newMessages[newMessages.length - 1] = lastMessage;
                     return newMessages;
                   });
                 } else if (parsedData.type === 'chunk') {
                   // 타자 치듯 텍스트 이어붙이기
                   setMessages(prev => {
                     const newMessages = [...prev];
-                    newMessages[newMessages.length - 1].content += parsedData.data;
+                    const lastMessage = { ...newMessages[newMessages.length - 1] };
+                    lastMessage.content += parsedData.data;
+                    newMessages[newMessages.length - 1] = lastMessage;
                     return newMessages;
                   });
                 } else if (parsedData.type === 'done') {
