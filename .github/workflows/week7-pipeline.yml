@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'week7/**'
+      - 'assignments/week7/**'
       - '.github/workflows/week7-pipeline.yml'
   workflow_dispatch:
 
@@ -24,22 +24,22 @@ jobs:
           node-version: '20.x'
 
       - name: Install dependencies
-        working-directory: week7
+        working-directory: assignments/week7
         run: npm install
 
       - name: Run ESLint (build gate)
-        working-directory: week7
+        working-directory: assignments/week7
         run: npm run lint
 
       - name: Build
-        working-directory: week7
+        working-directory: assignments/week7
         run: npm run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: week7-dist
-          path: week7/dist/
+          path: assignments/week7/dist/
           retention-days: 1
 
   # ── 2단계: Test (빌드 산출물 다운로드 후 테스트) ──────────────────────────────
@@ -61,20 +61,20 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: week7-dist
-          path: week7/dist/
+          path: assignments/week7/dist/
 
       - name: Verify artifact contents
         run: |
           echo "── dist/ 아티팩트 내용 ──"
-          ls -la week7/dist/
-          cat week7/dist/build-info.json
+          ls -la assignments/week7/dist/
+          cat assignments/week7/dist/build-info.json
 
       - name: Install dependencies
-        working-directory: week7
+        working-directory: assignments/week7
         run: npm install
 
       - name: Run Tests
-        working-directory: week7
+        working-directory: assignments/week7
         run: npm test
         env:
           # Secrets를 환경변수로 안전하게 주입
