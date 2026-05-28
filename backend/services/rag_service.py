@@ -9,11 +9,15 @@ from models.chat import ChatSource
 
 class RAGService:
     def __init__(self):
-        url = os.getenv("SUPABASE_URL")
+        url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
         key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not url or not key:
             raise ValueError("Supabase credentials not found in env")
-            
+
+        # /rest/v1 경로가 붙어있으면 제거 (supabase 클라이언트가 자체적으로 추가함)
+        if url.endswith("/rest/v1"):
+            url = url[: -len("/rest/v1")]
+
         self.supabase: Client = create_client(url, key)
         
         import torch

@@ -1,8 +1,19 @@
 import os
 from dotenv import load_dotenv
 
-# load .env before starting the app
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+# .env 파일 탐색: backend/ 우선, 없으면 프로젝트 루트(backend의 상위 디렉토리) 탐색
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+_root_dir = os.path.dirname(_backend_dir)
+
+_env_backend = os.path.join(_backend_dir, '.env')
+_env_root = os.path.join(_root_dir, '.env')
+
+if os.path.exists(_env_backend):
+    load_dotenv(_env_backend)
+elif os.path.exists(_env_root):
+    load_dotenv(_env_root)
+else:
+    load_dotenv()  # 기본 탐색 (현재 작업 디렉토리)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
