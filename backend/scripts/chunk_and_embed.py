@@ -4,26 +4,28 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from tenacity import retry, wait_exponential, stop_after_attempt
-from langchain_openai import OpenAIEmbeddings
 
-# Load environment variables (API Key)
-load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
+# Load environment variables (API Key) from backend/.env or root .env
+dotenv_paths = [
+    os.path.join(os.path.dirname(__file__), '../.env'),
+    os.path.join(os.path.dirname(__file__), '../../.env')
+]
+for path in dotenv_paths:
+    if os.path.exists(path):
+        load_dotenv(path)
 
 PROCESSED_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data/processed'))
 EMBEDDING_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data/embeddings'))
 
 def main():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key == "your-openai-api-key-here":
-        print("Error: OPENAI_API_KEY가 설정되지 않았습니다. .env 파일을 확인해주세요.")
-        return
+    print("Using local HuggingFace Embeddings (BAAI/bge-m3)...")
 
     if not os.path.exists(EMBEDDING_DIR):
         os.makedirs(EMBEDDING_DIR)
 
-    json_files = [f for f in os.listdir(PROCESSED_DIR) if f.endswith('.json')]
+    json_files = [f for f in os.listdir(PROCESSED_DIR) if f.endswith('.json') and f != 'processed_files.json']
     if not json_files:
         print(f"[{PROCESSED_DIR}] 폴더에 처리할 JSON 파일이 없습니다.")
         return
@@ -37,8 +39,15 @@ def main():
         separators=["\n\n", "\n", ". ", " ", ""]
     )
 
-    # 2. 임베딩 모델 설정
-    embeddings_model = OpenAIEmbeddings(model="text-embedding-3-small")
+    # 2. 임베딩 모델 설정 (Local BGE-M3 on Apple Silicon MPS or CPU)
+    import torch
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Running embeddings on device: {device}")
+
+    embeddings_model = HuggingFaceEmbeddings(
+        model_name="BAAI/bge-m3",
+        model_kwargs={"device": device}
+    )
 
     @retry(wait=wait_exponential(multiplier=1, min=2, max=20), stop=stop_after_attempt(5))
     def embed_with_retry(chunks):

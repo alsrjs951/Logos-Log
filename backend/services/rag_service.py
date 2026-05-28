@@ -1,7 +1,8 @@
 import os
 import json
 from supabase import create_client, Client
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import ChatOpenAI
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from typing import AsyncGenerator
 from models.chat import ChatSource
@@ -14,7 +15,13 @@ class RAGService:
             raise ValueError("Supabase credentials not found in env")
             
         self.supabase: Client = create_client(url, key)
-        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        
+        import torch
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        self.embeddings = HuggingFaceEmbeddings(
+            model_name="BAAI/bge-m3",
+            model_kwargs={"device": device}
+        )
         
         # 스트리밍을 지원하는 LLM 인스턴스 생성
         self.llm = ChatOpenAI(

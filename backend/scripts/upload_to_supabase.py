@@ -4,12 +4,22 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 from tqdm import tqdm
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
+# Load environment variables from backend/.env or root .env
+dotenv_paths = [
+    os.path.join(os.path.dirname(__file__), '../.env'),
+    os.path.join(os.path.dirname(__file__), '../../.env')
+]
+for path in dotenv_paths:
+    if os.path.exists(path):
+        load_dotenv(path)
 
 EMBEDDING_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data/embeddings'))
 
 def main():
     url = os.getenv("SUPABASE_URL")
+    if url:
+        url = url.split("/rest/v1")[0].strip()
+        
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
     if not url or not key:
@@ -45,7 +55,7 @@ def main():
         print(f"\n[{file}] 파일 업로드 중... ({len(chunked_data)} 청크)")
         
         # Batch insert into 'documents' table
-        batch_size = 500
+        batch_size = 10
         for i in tqdm(range(0, len(chunked_data), batch_size)):
             batch = chunked_data[i:i + batch_size]
             insert_data = []
@@ -56,11 +66,19 @@ def main():
                     "embedding": record["embedding"]
                 })
                 
-            try:
-                supabase.table("documents").insert(insert_data).execute()
-                total_chunks_uploaded += len(batch)
-            except Exception as e:
-                print(f"배치 업로드 실패 (index {i}~{i+len(batch)}): {e}")
+            # Retry mechanism
+            max_retries = 3
+            import time
+            for attempt in range(1, max_retries + 1):
+                try:
+                    supabase.table("documents").insert(insert_data).execute()
+                    total_chunks_uploaded += len(batch)
+                    break
+                except Exception as e:
+                    print(f"\n배치 업로드 시도 {attempt}/{max_retries} 실패 (index {i}~{i+len(batch)}): {e}")
+                    if attempt == max_retries:
+                        raise e
+                    time.sleep(2)
                 
         uploaded_files.append(file)
         with open(TRACK_FILE, 'w') as f:
@@ -69,4 +87,41 @@ def main():
     print(f"\n업로드 완료! 총 {total_chunks_uploaded}개의 청크가 Supabase에 저장되었습니다.")
 
 if __name__ == "__main__":
+    import sys
+    url = os.getenv("SUPABASE_URL")
+    if url:
+        url = url.split("/rest/v1")[0].strip()
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not url or not key:
+        print("Error: SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.")
+        sys.exit(1)
+
+    supabase_client: Client = create_client(url, key)
+
+    if "--reset" in sys.argv:
+        print("Reset flag detected. DB의 documents 테이블을 비우고 업로드 진행 상황을 초기화합니다...")
+        
+        # Delete track file
+        TRACK_FILE = os.path.join(EMBEDDING_DIR, 'uploaded_files.json')
+        if os.path.exists(TRACK_FILE):
+            os.remove(TRACK_FILE)
+            print("uploaded_files.json 초기화 완료.")
+
+        # Delete all documents in batches of 200 by ID
+        try:
+            deleted_count = 0
+            while True:
+                res_select = supabase_client.table("documents").select("id").limit(200).execute()
+                ids = [r["id"] for r in res_select.data]
+                if not ids:
+                    break
+                supabase_client.table("documents").delete().in_("id", ids).execute()
+                deleted_count += len(ids)
+                print(f"삭제 진행 중... 누적 {deleted_count}개 청크 삭제됨")
+            print("Supabase documents 테이블 초기화 완료.")
+        except Exception as e:
+            print(f"테이블 초기화 중 에러 발생: {e}")
+            sys.exit(1)
+            
     main()

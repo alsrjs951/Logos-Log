@@ -44,10 +44,10 @@
 
 | 영역 | 기술 |
 |------|------|
-| **LLM** | GPT-4o 또는 Claude 3.5 Sonnet |
-| **RAG Framework** | LangChain, LlamaIndex |
-| **Vector DB** | Supabase (pgvector) 또는 Pinecone |
-| **RAG 평가** | Ragas |
+| **LLM** | GPT-3.5 Turbo (응답 생성) |
+| **임베딩 모델** | `BAAI/bge-m3` (로컬, 1024차원, 무료) |
+| **RAG Framework** | LangChain + LangChain-HuggingFace |
+| **Vector DB** | Supabase (pgvector, 1024차원) |
 | **Backend** | FastAPI (Python) |
 | **Frontend** | Next.js (App Router), Tailwind CSS, Framer Motion |
 | **Deployment** | Vercel (FE), Render/Railway (BE) |
@@ -58,6 +58,8 @@
 | **DORA 자동화** | GitHub Actions + Octokit REST |
 | **CI/CD** | GitHub Actions |
 | **인프라** | Docker 24.0+, Docker Compose 2.20+ |
+
+> 💡 **임베딩 파이프라인은 완전 로컬 실행**으로, OpenAI API 비용 없이 Apple Silicon MPS GPU 가속을 활용합니다.
 
 ---
 
@@ -156,19 +158,49 @@ Logos-Log/
 ├── .github/
 │   ├── workflows/          # GitHub Actions (DORA 메트릭, 배포)
 │   └── ISSUE_TEMPLATE/     # 이슈 템플릿 (Bug / Feature)
+├── backend/
+│   ├── scripts/
+│   │   ├── collect_semantic_scholar_pdfs.py  # Semantic Scholar API로 논문 수집
+│   │   ├── preprocess.py                     # PDF 텍스트 추출 및 정규화
+│   │   ├── chunk_and_embed.py                # 청킹 + BAAI/bge-m3 로컬 임베딩
+│   │   ├── upload_to_supabase.py             # Supabase Vector DB 업로드
+│   │   └── test_retriever.py                 # RAG 검색기 테스트
+│   └── services/
+│       └── rag_service.py                    # LangChain RAG 서비스 (FastAPI 연동)
+├── data/
+│   ├── raw/                # 수집된 PDF 원본 (gitignore)
+│   ├── processed/          # 전처리된 JSON 텍스트 (gitignore)
+│   └── embeddings/         # 임베딩 벡터 JSON (gitignore)
+├── frontend/               # Next.js 프론트엔드
 ├── assignments/            # 주차별 과제 결과물
-│   ├── week1/
-│   ├── week2/
-│   ├── ...
-│   └── week8/
 ├── dashboard/              # DORA 메트릭 정적 대시보드
-├── project/                # 프로젝트 문서
 ├── scripts/                # Kibana 대시보드 임포트 스크립트
 ├── docker-compose-es.yml
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
 └── LICENSE
 ```
+
+---
+
+## 데이터 파이프라인
+
+500개의 오픈 액세스 심리학 논문을 수집하여 Supabase Vector DB에 인덱싱하는 파이프라인입니다.
+
+```
+[Semantic Scholar API] → [PDF 수집] → [텍스트 추출] → [청킹]
+                                                              ↓
+[Supabase pgvector DB] ← [업로드] ← [BAAI/bge-m3 임베딩 (로컬)]
+```
+
+| 단계 | 스크립트 | 결과 |
+|------|----------|------|
+| 논문 수집 | `collect_semantic_scholar_pdfs.py` | 498개 PDF |
+| 텍스트 전처리 | `preprocess.py` | 498개 JSON |
+| 청킹 + 임베딩 | `chunk_and_embed.py` | 25,289개 벡터 청크 |
+| DB 업로드 | `upload_to_supabase.py` | Supabase에 저장 완료 |
+
+**수집 카테고리**: Logotherapy (150) · Positive Psychology (150) · SDT (100) · CBT (98)
 
 
 ---

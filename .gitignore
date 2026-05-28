@@ -28,8 +28,10 @@ MANIFEST
 # Data files
 data/raw/*.pdf
 data/processed/*.json
+data/embeddings/*.json
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/embeddings/.gitkeep
 
 # Node / JS
 node_modules/

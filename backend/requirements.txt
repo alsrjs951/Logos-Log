@@ -1,6 +1,7 @@
 PyMuPDF
 pydantic
 tqdm
+requests
 langchain
 langchain-text-splitters
 langchain-openai
@@ -11,3 +12,6 @@ supabase
 fastapi
 uvicorn
 sse-starlette
+sentence-transformers
+langchain-huggingface
+torch

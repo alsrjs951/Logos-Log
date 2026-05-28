@@ -1,12 +1,21 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from langchain_openai import OpenAIEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+import torch
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '../.env'))
+dotenv_paths = [
+    os.path.join(os.path.dirname(__file__), '../.env'),
+    os.path.join(os.path.dirname(__file__), '../../.env')
+]
+for path in dotenv_paths:
+    if os.path.exists(path):
+        load_dotenv(path)
 
 def main():
     url = os.getenv("SUPABASE_URL")
+    if url:
+        url = url.split("/rest/v1")[0].strip()
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
     if not url or not key:
@@ -14,7 +23,13 @@ def main():
         return
 
     supabase: Client = create_client(url, key)
-    embeddings_model = OpenAIEmbeddings(model="text-embedding-3-small")
+    
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"Using device: {device} for local embeddings")
+    embeddings_model = HuggingFaceEmbeddings(
+        model_name="BAAI/bge-m3",
+        model_kwargs={"device": device}
+    )
 
     print("="*60)
     print(" Logos-Log RAG Retriever Test")
