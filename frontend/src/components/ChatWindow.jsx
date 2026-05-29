@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
+import ValueCardModal from './ValueCardModal';
 import { Bot, User } from 'lucide-react';
 
 const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
@@ -9,6 +10,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
     { role: 'bot', content: '안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는 Logos-Log AI입니다. 왼쪽 메뉴에서 일기를 쓰거나 바로 질문을 입력하여 대화를 나누어보세요.', sources: [] }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -143,6 +145,21 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
 
   return (
     <>
+      <div className="chat-window-header">
+        <span className="chat-status-indicator">
+          {isLoading ? '● AI 분석가 답변 입력 중...' : '● 성찰 세션 활성화'}
+        </span>
+        {messages.length > 1 && (
+          <button 
+            className="archive-value-btn" 
+            onClick={() => setIsModalOpen(true)}
+            disabled={isLoading}
+          >
+            💡 가치 카드로 저장하기
+          </button>
+        )}
+      </div>
+
       <div className="chat-area">
         {messages.map((msg, index) => (
           <div key={index} className={`message-row ${msg.role}`}>
@@ -189,6 +206,16 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
       </div>
       
       <MessageInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+
+      {isModalOpen && (
+        <ValueCardModal 
+          messages={messages} 
+          onClose={() => setIsModalOpen(false)} 
+          onSaveSuccess={() => {
+            // 성찰 카드가 성공적으로 저장되면 알림
+          }}
+        />
+      )}
     </>
   );
 };

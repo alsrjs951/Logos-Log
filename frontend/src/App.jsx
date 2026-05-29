@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import ChatWindow from './components/ChatWindow';
 import JournalEditor from './components/JournalEditor';
 import JournalList from './components/JournalList';
-import { BrainCircuit, Plus, MessageSquare } from 'lucide-react';
+import MeaningNetwork from './components/MeaningNetwork';
+import { BrainCircuit, Plus, MessageSquare, Globe } from 'lucide-react';
 import './App.css';
 
 function App() {
-  const [currentMode, setCurrentMode] = useState('editor'); // 'editor' | 'chat'
+  const [currentMode, setCurrentMode] = useState('editor'); // 'editor' | 'chat' | 'network'
   const [journals, setJournals] = useState([]);
   const [initialJournalForChat, setInitialJournalForChat] = useState(null);
   const [activeJournalId, setActiveJournalId] = useState(null);
@@ -62,6 +63,13 @@ function App() {
     setInitialJournalForChat(null);
   };
 
+  // 의미 네트워크 화면으로 이동
+  const handleShowNetwork = () => {
+    setCurrentMode('network');
+    setActiveJournalId(null);
+    setInitialJournalForChat(null);
+  };
+
   return (
     <div className="app-container glass-panel">
       <header className="app-header">
@@ -77,13 +85,17 @@ function App() {
       <div className="main-layout">
         {/* 좌측 사이드바 */}
         <aside className="sidebar">
-          <button className="sidebar-action-btn" onClick={handleNewJournal}>
+          <button className={`sidebar-action-btn ${currentMode === 'editor' ? 'active-mode' : ''}`} onClick={handleNewJournal}>
             <Plus size={16} />
             새 일기 쓰기
           </button>
-          <button className="sidebar-action-btn" onClick={handlePlainChat} style={{ marginTop: 0 }}>
+          <button className={`sidebar-action-btn ${currentMode === 'chat' && !activeJournalId ? 'active-mode' : ''}`} onClick={handlePlainChat} style={{ marginTop: 0 }}>
             <MessageSquare size={16} />
             바로 대화하기
+          </button>
+          <button className={`sidebar-action-btn ${currentMode === 'network' ? 'active-mode' : ''}`} onClick={handleShowNetwork} style={{ marginTop: 0 }}>
+            <Globe size={16} />
+            의미 네트워크
           </button>
 
           <div className="sidebar-list-title">나의 감정 성찰 기록</div>
@@ -96,13 +108,17 @@ function App() {
 
         {/* 우측 메인 콘텐츠 영역 */}
         <main className="content-area">
-          {currentMode === 'editor' ? (
+          {currentMode === 'editor' && (
             <JournalEditor onStartAnalysis={handleStartAnalysis} />
-          ) : (
+          )}
+          {currentMode === 'chat' && (
             <ChatWindow 
               initialJournal={initialJournalForChat} 
               onClearInitialJournal={() => setInitialJournalForChat(null)} 
             />
+          )}
+          {currentMode === 'network' && (
+            <MeaningNetwork />
           )}
         </main>
       </div>
