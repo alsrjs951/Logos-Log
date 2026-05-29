@@ -9,6 +9,213 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // 캔버스 기반 카드 이미지 드로잉 및 다운로드 처리 함수
+  const exportCardAsImage = () => {
+    if (!keyword || !insight) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 1200;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const emotionColorMap = {
+      happy: '#10b981', 
+      sad: '#6366f1', 
+      stressed: '#ec4899', 
+      calm: '#06b6d4', 
+      tired: '#f59e0b' 
+    };
+    const themeColor = emotionColorMap[emotion] || '#6366f1';
+
+    // 1. 우주 배경 그리기
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, 1200);
+    bgGrad.addColorStop(0, '#0a0b1a');
+    bgGrad.addColorStop(0.5, '#060713');
+    bgGrad.addColorStop(1, '#020308');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 800, 1200);
+
+    // 1-1. 성간 오로라 광원 효과 추가
+    const radialGrad = ctx.createRadialGradient(400, 500, 50, 400, 500, 400);
+    radialGrad.addColorStop(0, hexToRgbAlpha(themeColor, 0.18));
+    radialGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = radialGrad;
+    ctx.fillRect(0, 0, 800, 1200);
+
+    // 1-2. 무작위 별빛 파우더 드로잉
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    for (let i = 0; i < 50; i++) {
+      const x = Math.random() * 800;
+      const y = Math.random() * 1200;
+      const size = Math.random() * 1.8 + 0.5;
+      ctx.beginPath();
+      ctx.arc(x, y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. 글라스모피즘 카드 모양 그리기
+    const cardX = 80;
+    const cardY = 150;
+    const cardW = 640;
+    const cardH = 900;
+    const cardR = 32;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 45;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 15;
+
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+    } else {
+      drawRoundRectPolyfill(ctx, cardX, cardY, cardW, cardH, cardR);
+    }
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+    } else {
+      drawRoundRectPolyfill(ctx, cardX, cardY, cardW, cardH, cardR);
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 3. 카드 상단 장식 별 렌더링
+    ctx.save();
+    ctx.shadowColor = themeColor;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#ffffff';
+    drawStar(ctx, 400, 240, 4, 15, 6);
+    ctx.restore();
+
+    // 4. 타이틀 텍스트 렌더링
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '600 13px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('L O G O S  -  L O G   |   M E A N I N G   A R C H I V E', 400, 290);
+
+    const emojiMap = { happy: '😊 행복', sad: '😢 슬픔', stressed: '🤯 스트레스', calm: '🧘 평온', tired: '😴 피로' };
+    const emotionLabel = emojiMap[emotion] || '📝 성찰';
+    ctx.fillStyle = hexToRgbAlpha(themeColor, 0.85);
+    ctx.font = '700 14px Inter, sans-serif';
+    ctx.fillText(`마음 온도: ${emotionLabel}`, 400, 330);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.moveTo(250, 370);
+    ctx.lineTo(550, 370);
+    ctx.stroke();
+
+    // 4-1. 핵심 가치 키워드 (네온 글로우)
+    ctx.save();
+    ctx.shadowColor = themeColor;
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 58px Inter, system-ui, sans-serif';
+    ctx.fillText(keyword, 400, 480);
+    ctx.restore();
+
+    // 4-2. 인사이트 본문 (다단 줄바꿈 연산)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+    ctx.font = '500 24px Inter, system-ui, sans-serif';
+    const maxTextWidth = 460;
+    const lineHeight = 42;
+    const textYStart = 580;
+    wrapText(ctx, insight, 400, textYStart, maxTextWidth, lineHeight);
+
+    // 5. 하단 데코 및 브랜딩 날짜 표기
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.fillText('나의 마음 깊은 곳에서 건져 올린 실존 가치를 기록합니다.', 400, 930);
+
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}. ${String(now.getMonth() + 1).padStart(2, '0')}. ${String(now.getDate()).padStart(2, '0')}.`;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.font = '700 13px Inter, sans-serif';
+    ctx.fillText(dateStr, 400, 970);
+
+    // 6. 다운로드 트리거
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.download = `[Logos-Log]_가치카드_${keyword}.png`;
+    link.href = dataUrl;
+    link.click();
+  };
+
+  const hexToRgbAlpha = (hex, alpha) => {
+    const cleanHex = hex.replace('#', '');
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const drawRoundRectPolyfill = (ctx, x, y, width, height, radius) => {
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  };
+
+  const drawStar = (ctx, cx, cy, spikes, outerRadius, innerRadius) => {
+    let rot = Math.PI / 2 * 3;
+    let x = cx;
+    let y = cy;
+    let step = Math.PI / spikes;
+
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - outerRadius);
+    for (let i = 0; i < spikes; i++) {
+      x = cx + Math.cos(rot) * outerRadius;
+      y = cy + Math.sin(rot) * outerRadius;
+      ctx.lineTo(x, y);
+      rot += step;
+
+      x = cx + Math.cos(rot) * innerRadius;
+      y = cy + Math.sin(rot) * innerRadius;
+      ctx.lineTo(x, y);
+      rot += step;
+    }
+    ctx.lineTo(cx, cy - outerRadius);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const wrapText = (ctx, text, x, y, maxWidth, lineHeight) => {
+    const chars = text.split('');
+    let line = '';
+    let lines = [];
+
+    for (let i = 0; i < chars.length; i++) {
+      let testLine = line + chars[i];
+      let testWidth = ctx.measureText(testLine).width;
+      if (testWidth > maxWidth && i > 0) {
+        lines.push(line);
+        line = chars[i];
+      } else {
+        line = testLine;
+      }
+    }
+    lines.push(line);
+
+    for (let j = 0; j < lines.length; j++) {
+      ctx.fillText(lines[j], x, y + (j * lineHeight));
+    }
+  };
+
   useEffect(() => {
     // 1. 대화 히스토리에서 가치 추출 API 호출
     const extractValue = async () => {
@@ -105,7 +312,15 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
             <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: '1.6', margin: '0 20px', maxWidth: '360px' }}>
               핵심 가치 키워드 <strong style={{ color: 'var(--accent-secondary)' }}>'{keyword}'</strong>가 나만의 성찰 은하에 노드로 훌륭히 매핑되었습니다.
             </p>
-            <div className="success-actions" style={{ display: 'flex', gap: '12px', marginTop: '15px', width: '100%', justifyContent: 'center' }}>
+            <div className="success-actions" style={{ display: 'flex', gap: '12px', marginTop: '15px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button 
+                type="button" 
+                className="success-download-btn"
+                onClick={exportCardAsImage}
+                style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '12px 20px', borderRadius: '8px', color: '#10b981', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', fontFamily: 'inherit', transition: 'all 0.25s' }}
+              >
+                📥 카드 소장하기
+              </button>
               <button 
                 type="button" 
                 className="success-nav-btn"
