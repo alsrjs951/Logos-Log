@@ -43,13 +43,14 @@ class RAGService:
         try:
             system_prompt = (
                 "You are an academic search query optimization assistant.\n"
-                "Translate and expand the user's psychological concern or question in Korean into key academic English search terms.\n"
-                "Output ONLY the English search terms separated by space (no explanation, no punctuation, no quotes). Max 5-8 terms.\n"
+                "Translate and expand the user's psychological concern or question in Korean into a natural English search sentence followed by key academic search terms (synonyms, theories, or related terms).\n"
+                "Output format: 'Translated sentence. Keywords: term1, term2, term3, ...'\n"
+                "Output ONLY the result in English (no explanation, no extra markdown, no quotes).\n"
                 "Examples:\n"
                 "Input: '오늘 회사에서 너무 무기력하고 번아웃이 왔어'\n"
-                "Output: 'burnout work exhaustion coping strategies logotherapy'\n"
+                "Output: 'I feel helpless and burned out at work today. Keywords: occupational burnout, exhaustion, coping strategies, logotherapy, employee stress'\n"
                 "Input: '인간의 기본 욕구가 무엇인가요?'\n"
-                "Output: 'basic psychological needs self determination theory autonomy competence relatedness'"
+                "Output: 'What are the basic psychological needs of humans? Keywords: basic psychological needs, self-determination theory, autonomy, competence, relatedness'"
             )
             
             messages = [
@@ -77,19 +78,35 @@ class RAGService:
         yield f"data: {json.dumps({'type': 'status', 'data': 'searching'}, ensure_ascii=False)}\n\n"
         query_embedding = self.embeddings.embed_query(english_query)
         
-        # Supabase에서 하이브리드(Vector + FTS) 관련 문서 검색 (임계치 0.56 적용)
+        # Supabase에서 하이브리드(Vector + FTS) 관련 문서 검색 (임계치 0.50 적용 및 8개 후보 수집)
         response = self.supabase.rpc("match_documents_hybrid", {
             "query_embedding": query_embedding,
             "query_text": english_query,
-            "match_threshold": 0.56,
-            "match_count": 3
+            "match_threshold": 0.50,
+            "match_count": 8
         }).execute()
         
-        results = response.data
+        results = response.data or []
+        
+        # 1차 후보군 파싱 (최소 하이브리드 점수 0.30 이상인 실질 후보군만 필터링)
+        candidates = []
+        for res in results:
+            sim = res.get("similarity", 0)
+            if sim >= 0.30:
+                candidates.append({
+                    "id": res.get("id"),
+                    "content": res.get("content"),
+                    "metadata": res.get("metadata") or {},
+                    "similarity": sim
+                })
+
+        # LLM Re-ranking 적용
+        reranked_results = await self._rerank_documents(query, candidates)
+
         sources = []
         context_text = ""
         
-        for res in results:
+        for res in reranked_results:
             meta = res.get("metadata", {})
             sources.append({
                 "id": res.get("id"),
@@ -229,3 +246,61 @@ class RAGService:
         except Exception as e:
             print(f"Error fetching chat history from database: {e}", flush=True)
             return []
+
+    async def _rerank_documents(self, query: str, documents: list) -> list:
+        """
+        LLM(GPT-3.5-turbo)을 사용하여 검색된 후보 문서들과 사용자 질문의 문맥적 일치도를 평가하고,
+        가장 관련성이 높은 상위 3개의 문서만을 선별하여 정렬된 순서대로 반환합니다.
+        """
+        if not documents:
+            return []
+
+        try:
+            # 평가용 프롬프트 작성
+            docs_text = ""
+            for idx, doc in enumerate(documents):
+                docs_text += f"\n[Document {idx}]\nContent: {doc.get('content')}\n"
+
+            system_prompt = (
+                "You are an academic document retrieval re-ranking assistant.\n"
+                "Your task is to evaluate the relevance of the retrieved academic paper chunks to the user's query.\n"
+                "Select up to 3 chunks that are most relevant and directly helpful in addressing the user's psychological concern or question.\n"
+                "Output ONLY the indices of the selected chunks in order of relevance, separated by a single space (e.g., '2 0 4').\n"
+                "If less than 3 chunks are relevant, output only the indices of those relevant chunks (e.g., '1 3').\n"
+                "If none of the chunks are relevant, output 'NONE'.\n"
+                "Do NOT provide any explanations, code, markdown, or extra text."
+            )
+
+            user_prompt = f"User Query: {query}\n\nRetrieved Academic Chunks:{docs_text}"
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+
+            response = await self.llm.ainvoke(messages)
+            result = response.content.strip().upper()
+            print(f"RAG Re-ranking Result: '{result}' for Query: '{query}'", flush=True)
+
+            if result == "NONE":
+                return []
+
+            import re
+            indices = [int(idx) for idx in re.findall(r'\d+', result) if 0 <= int(idx) < len(documents)]
+            
+            # 중복 제거 및 상위 3개 선별
+            seen = set()
+            unique_indices = []
+            for idx in indices:
+                if idx not in seen:
+                    seen.add(idx)
+                    unique_indices.append(idx)
+            
+            # 재정렬된 문서 리스트 생성
+            reranked_docs = [documents[idx] for idx in unique_indices[:3]]
+            return reranked_docs
+
+        except Exception as e:
+            print(f"Error during RAG re-ranking: {e}", flush=True)
+            # 재정렬 오류 시 안전하게 상위 3개 기본 리턴
+            return documents[:3]
