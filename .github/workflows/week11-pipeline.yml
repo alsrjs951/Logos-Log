@@ -1,0 +1,88 @@
+name: Week 11 Pipeline — Feature Flags, A/B Testing & Canary Rollout
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignments/week11/**'
+      - '.github/workflows/week11-pipeline.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assignments/week11/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-simulate:
+    name: Run Unit Tests & User Simulation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'assignments/week11/package.json'
+
+      - name: Install dependencies
+        working-directory: assignments/week11
+        run: npm install
+
+      - name: Run Jest Unit Tests
+        working-directory: assignments/week11
+        run: npm run test
+
+      - name: Run A/B Test & Feature Flag Simulation
+        working-directory: assignments/week11
+        run: |
+          npm start > simulation-output.txt
+          cat simulation-output.txt
+          
+          # Write output to Step Summary
+          echo "### 📊 A/B Test & Feature Flags Simulation Output" >> $GITHUB_STEP_SUMMARY
+          echo "This report outlines the activation rates for 3 Feature Flags and conversion rate statistics for the \`new-chat-ui\` A/B Test." >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat simulation-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  canary-rollback-demo:
+    name: Canary Rollout & Automatic Rollback Simulation
+    needs: test-and-simulate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set script permissions
+        run: chmod +x ./assignments/week11/scripts/canary-rollout.sh
+
+      - name: Run Healthy Canary Rollout Demo (100% Success)
+        run: |
+          ./assignments/week11/scripts/canary-rollout.sh healthy > healthy-output.txt
+          cat healthy-output.txt
+          
+          # Write healthy scenario to Step Summary
+          echo "### 🟢 Canary Rollout (Healthy - 100% Deploy)" >> $GITHUB_STEP_SUMMARY
+          echo "The following terminal logs show the rollout scaling up to 100% successfully under healthy conditions:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat healthy-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Run Unhealthy Canary Rollout & Auto-Rollback Demo
+        run: |
+          # Append || true to prevent the workflow from failing when the rollback simulation exits with 1
+          ./assignments/week11/scripts/canary-rollout.sh unhealthy > unhealthy-output.txt || true
+          cat unhealthy-output.txt
+          
+          # Write unhealthy scenario to Step Summary
+          echo "### 🔴 Canary Rollout (Unhealthy - Auto Rollback)" >> $GITHUB_STEP_SUMMARY
+          echo "The following terminal logs demonstrate the automated rollback triggered when the error rate exceeds the threshold of 5.0%:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat unhealthy-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

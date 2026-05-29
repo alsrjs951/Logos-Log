@@ -1,0 +1,15 @@
+{
+  "name": "@alsrjs951/week11-devops",
+  "version": "1.0.0",
+  "description": "Week 11 — Feature Flags, A/B Testing with Consistent Hashing, and Canary Rollout Simulation",
+  "main": "src/feature_flags.js",
+  "scripts": {
+    "start": "node src/simulate.js",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "author": "alsrjs951",
+  "license": "MIT"
+}
