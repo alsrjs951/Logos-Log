@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from supabase import create_client, Client
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -34,17 +35,51 @@ class RAGService:
             streaming=True
         )
 
+    async def _expand_query(self, query: str) -> str:
+        # 한글이 아예 없으면 번역/확장 없이 그대로 반환
+        if not re.search('[ㄱ-ㅎㅏ-ㅣ가-힣]', query):
+            return query
+            
+        try:
+            system_prompt = (
+                "You are an academic search query optimization assistant.\n"
+                "Translate and expand the user's psychological concern or question in Korean into key academic English search terms.\n"
+                "Output ONLY the English search terms separated by space (no explanation, no punctuation, no quotes). Max 5-8 terms.\n"
+                "Examples:\n"
+                "Input: '오늘 회사에서 너무 무기력하고 번아웃이 왔어'\n"
+                "Output: 'burnout work exhaustion coping strategies logotherapy'\n"
+                "Input: '인간의 기본 욕구가 무엇인가요?'\n"
+                "Output: 'basic psychological needs self determination theory autonomy competence relatedness'"
+            )
+            
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=query)
+            ]
+            
+            response = await self.llm.ainvoke(messages)
+            expanded = response.content.strip().replace('"', '').replace("'", "")
+            print(f"RAG Optimization: Original: '{query}' -> Expanded English Search Query: '{expanded}'")
+            return expanded
+        except Exception as e:
+            print(f"Error in query expansion: {e}")
+            return query
+
     async def get_streaming_response(self, query: str, history: list = None, is_journal: bool = False) -> AsyncGenerator[str, None]:
         if history is None:
             history = []
             
-        # 1. 질문 임베딩
-        query_embedding = self.embeddings.embed_query(query)
+        # 1. 쿼리 영어 번역 및 학술 키워드 확장 (Query Expansion)
+        english_query = await self._expand_query(query)
+            
+        # 2. 질문 임베딩 (번역/확장된 영어 키워드 임베딩 생성)
+        query_embedding = self.embeddings.embed_query(english_query)
         
-        # 2. Supabase에서 관련 문서 검색 (유사도 임계치 0.57로 미세 조정)
-        response = self.supabase.rpc("match_documents", {
+        # 3. Supabase에서 하이브리드(Vector + FTS) 관련 문서 검색 (임계치 0.25 적용)
+        response = self.supabase.rpc("match_documents_hybrid", {
             "query_embedding": query_embedding,
-            "match_threshold": 0.57,
+            "query_text": english_query,
+            "match_threshold": 0.25,
             "match_count": 3
         }).execute()
         
@@ -64,15 +99,16 @@ class RAGService:
             })
             context_text += f"\n- {res.get('content')}"
 
-        # 3. 소크라테스식 대화법 & 의미치료 기반 시스템 프롬프트 생성
+        # 4. 소크라테스식 대화법 & 의미치료 기반 시스템 프롬프트 생성
         if is_journal:
             # 일기 분석 전용 프롬프트
             if results:
                 system_prompt = (
                     "당신은 의미치료(Logotherapy) 및 긍정 심리학을 기반으로 사용자의 일기(저널)를 분석하고 깊이 있는 성찰을 돕는 전문 카운셀러 AI 'Logos-Log'입니다.\n\n"
                     "[대화 원칙]\n"
-                    "1. 사용자가 작성한 일기 내용과 감정을 따뜻하고 분석적인 시선으로 살펴보고 공감해주세요. 피상적인 위로는 삼가고, 사용자가 털어놓은 마음에 귀를 기울이고 있음을 느끼게 하십시오.\n"
-                    "2. 제공된 [학술 논문 내용]의 학술적/심리학적 통찰을 자연스럽게 녹여 일기의 고민을 새로운 각도에서 볼 수 있도록 지원하세요. 절대 딱딱하게 논문을 요약하지 말고 스며들듯이 전달하세요.\n"
+                    "1. 제공된 [학술 논문 내용](영어)이 사용자의 일기 내용(한국어)과 의미상(번역을 고려했을 때) 실질적인 연관성이 전혀 없는 경우(예: 일상적인 인사, 잡담 등), 논문 내용을 무시하고 논문을 인용하지 마십시오. "
+                    "이 경우 관련 논문이 없는 것으로 간주하고 정중하게 '작성하신 일기와 매칭되는 특정 논문 자료는 찾지 못했지만...'으로 대화를 시작하세요.\n"
+                    "2. 논문 내용이 연관성이 있다면, 학술적 통찰을 자연스럽게 대화에 녹여 설명하되 딱딱한 요약체가 아닌 부드럽고 따뜻한 상담 톤을 유지하세요. 한글 단어와 영문 논문 용어(예: 자율성 - autonomy, 기본 욕구 - basic needs)가 자연스럽게 매치됩니다.\n"
                     "3. 사용자의 일기 속 고민을 의미치료 관점(예: 태도의 가치, 시련 속 의미 찾기, 선택과 책임)으로 전환할 수 있는 가능성을 정중히 제안해 보세요.\n"
                     "4. 답변 마무리에는 일기 내용을 토대로 사용자가 스스로 내면의 답을 찾아가도록 돕는 '소크라테스식 열린 역질문'을 1~2개 반드시 던져 대화를 이어가십시오.\n\n"
                     f"[학술 논문 내용]\n{context_text}"
@@ -92,9 +128,9 @@ class RAGService:
                 system_prompt = (
                     "당신은 의미치료(Logotherapy) 및 긍정 심리학을 기반으로 사용자의 자아 성찰을 돕는 전문 카운셀러 AI 'Logos-Log'입니다.\n\n"
                     "[대화 원칙]\n"
-                    "1. 제공된 [학술 논문 내용]이 사용자의 질문이나 처한 상황과 실질적인 연관성이 전혀 없는 경우(예: 일상적인 인사, 음식 메뉴 추천, 단순 잡담 등), 논문 내용을 무시하고 논문을 인용하지 마십시오. "
+                    "1. 제공된 [학술 논문 내용](영어)이 사용자의 질문(한국어)과 의미상(번역을 고려했을 때) 실질적인 연관성이 전혀 없는 경우(예: 일상적인 인사, 음식 메뉴 추천, 단순 잡담 등), 논문 내용을 무시하고 논문을 인용하지 마십시오. "
                     "이 경우 관련 논문이 없는 것으로 간주하고 정중하게 '고민하신 주제와 직접 매칭되는 학술 자료는 없지만...'으로 시작하며 따뜻하게 상담해 주세요.\n"
-                    "2. 논문 내용이 연관성이 있다면, 학술적 통찰을 자연스럽게 대화에 녹여 설명하되 딱딱한 요약체가 아닌 부드럽고 따뜻한 상담 톤을 유지하세요.\n"
+                    "2. 논문 내용이 연관성이 있다면(예: 사용자가 자율성/기본욕구/번아웃 등을 묻고, 제공된 논문이 sdt/autonomy/burnout/needs 등을 다루는 경우), 학술적 통찰을 자연스럽게 대화에 녹여 설명하되 부드럽고 따뜻한 상담 톤을 유지하세요.\n"
                     "3. 상투적인 위로(\"힘드셨겠네요\", \"힘내세요\")는 피하고, 사용자의 마음에 깊이 공감한 후 그 안의 감정을 정돈해 주는 반영적 태도를 취하세요.\n"
                     "4. 해결책을 성급하게 직접 주지 마십시오. 대신 사용자가 스스로 가치와 의미(창조적 가치, 경험적 가치, 태도적 가치)를 깨달을 수 있도록 유도하세요.\n"
                     "5. 대화의 마무리에는 사용자가 자신의 상황을 되돌아보고 성찰할 수 있는 구체적이고 깊이 있는 '소크라테스식 열린 질문(역질문)'을 1~2개 던져주세요.\n\n"
@@ -123,13 +159,13 @@ class RAGService:
         # 현재 질문 추가
         messages.append(HumanMessage(content=query))
         
-        # 4. 소스(출처) 데이터를 첫 번째 이벤트로 전송 (클라이언트에서 파싱할 수 있게 특수 포맷 사용)
+        # 5. 소스(출처) 데이터를 첫 번째 이벤트로 전송 (클라이언트에서 파싱할 수 있게 특수 포맷 사용)
         yield f"data: {json.dumps({'type': 'sources', 'data': sources}, ensure_ascii=False)}\n\n"
         
-        # 5. LLM 스트리밍 응답 (한 글자씩 Yield)
+        # 6. LLM 스트리밍 응답 (한 글자씩 Yield)
         async for chunk in self.llm.astream(messages):
             if chunk.content:
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk.content}, ensure_ascii=False)}\n\n"
                 
-        # 6. 스트리밍 종료 알림
+        # 7. 스트리밍 종료 알림
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
