@@ -120,3 +120,7 @@ GitHub Actions 가상 머신(Runner)은 매번 깨끗한 환경에서 빌드를 
 1. **Uptime Monitoring**: 클라우드 호스팅 자체 모니터링(Render Web Service Uptime Checks)을 활성화하여 30초 주기로 기본 경로 `/` 또는 `/health` 엔드포인트의 리스폰스를 기록합니다.
 2. **Alerting & Integration**: 서비스 접속이 불가능하거나 지연 시간이 5000ms를 상회하는 장애가 3회 연속 측정되면, 사전에 바인딩된 관리자 이메일 및 Slack Webhook 채널로 즉시 Alert 노티피케이션을 전송합니다.
 3. **GitHub Actions Guard**: CI/CD 파이프라인에서 배포 완료 시점에 구동하는 헬스체크 스크립트가 적색(Fail) 상태로 끝나는 경우 롤아웃 단계를 즉시 차단하고 기존의 안정적인 컨테이너 스냅샷으로 자동 롤백을 수행합니다.
+
+---
+
+*최종 업데이트: 2026-05-29 (의존성 PR 병합 및 CI/CD 워크플로우 정상 검증 완료)*
