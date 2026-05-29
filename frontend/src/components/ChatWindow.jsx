@@ -4,9 +4,9 @@ import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
 import { Bot, User } from 'lucide-react';
 
-const ChatWindow = () => {
+const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
   const [messages, setMessages] = useState([
-    { role: 'bot', content: '안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는 Logos-Log AI입니다. 무엇을 도와드릴까요?', sources: [] }
+    { role: 'bot', content: '안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는 Logos-Log AI입니다. 왼쪽 메뉴에서 일기를 쓰거나 바로 질문을 입력하여 대화를 나누어보세요.', sources: [] }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -19,19 +19,51 @@ const ChatWindow = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = async (query) => {
-    // 1. 사용자 메시지 추가
-    setMessages(prev => [...prev, { role: 'user', content: query }]);
+  // initialJournal이 넘어오면 채팅창을 비우고 자동으로 일기 RAG 분석을 시작합니다.
+  useEffect(() => {
+    if (initialJournal) {
+      setMessages([]); // 기존 메시지 초기화
+      
+      const emotionEmojiMap = {
+        happy: '😊',
+        sad: '😢',
+        stressed: '🤯',
+        calm: '🧘',
+        tired: '😴'
+      };
+      const emoji = emotionEmojiMap[initialJournal.emotion] || '📝';
+      
+      const queryText = `[일기 분석 요청]\n제목: ${initialJournal.title}\n감정 상태: ${emoji} (${initialJournal.emotion})\n본문:\n${initialJournal.content}`;
+      
+      // 일기 분석 API 요청 시작
+      handleSendMessage(queryText, true);
+      
+      if (onClearInitialJournal) {
+        onClearInitialJournal();
+      }
+    }
+  }, [initialJournal]);
+
+  const handleSendMessage = async (query, isJournalOverride = false) => {
+    // 1. 사용자 메시지 추가 (일기 분석 요청이면 읽기 쉽게 포맷)
+    const displayContent = isJournalOverride 
+      ? `📖 **[일기 분석 시작]**\n\n**제목:** ${query.split('\n')[1].replace('제목: ', '')}\n**감정:** ${query.split('\n')[2].replace('감정 상태: ', '')}\n\n${query.split('\n').slice(4).join('\n')}`
+      : query;
+
+    setMessages(prev => [...prev, { role: 'user', content: displayContent }]);
     setIsLoading(true);
 
-    // 2. 봇의 빈 메시지 추가 (여기에 스트리밍 데이터를 붙여넣을 예정)
+    // 2. 봇의 빈 메시지 추가 (스트리밍 수신용)
     setMessages(prev => [...prev, { role: 'bot', content: '', sources: [] }]);
 
-    // 최근 대화 맥락 추출 (첫 인사말 제외, 현재 질문 제외, 최대 10개)
-    const historyData = messages
-      .slice(1)
-      .map(msg => ({ role: msg.role, content: msg.content }))
-      .slice(-10);
+    // 이전 대화 맥락 추출 (일기 분석 요청이면 히스토리 없이 전송)
+    const historyData = isJournalOverride 
+      ? [] 
+      : messages
+          .filter(msg => msg.content !== '')
+          .slice(1) // 첫 인사말 제외
+          .map(msg => ({ role: msg.role, content: msg.content }))
+          .slice(-10);
 
     try {
       // 3. 백엔드 API (SSE) 호출
@@ -40,7 +72,11 @@ const ChatWindow = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ query, history: historyData })
+        body: JSON.stringify({ 
+          query, 
+          history: historyData,
+          is_journal: isJournalOverride
+        })
       });
 
       if (!response.body) throw new Error('ReadableStream not supported.');

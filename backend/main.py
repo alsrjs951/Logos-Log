@@ -18,6 +18,7 @@ else:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.chat import router as chat_router
+from api.journals import router as journal_router
 
 app = FastAPI(title="Logos-Log API", description="AI 챗봇을 위한 백엔드 API 서버")
 
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # 라우터 등록
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
+app.include_router(journal_router, prefix="/api", tags=["Journals"])
 
 @app.get("/")
 def read_root():

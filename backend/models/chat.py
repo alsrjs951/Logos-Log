@@ -8,6 +8,7 @@ class ChatHistoryItem(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     history: Optional[List[ChatHistoryItem]] = []
+    is_journal: Optional[bool] = False
 
 class ChatSource(BaseModel):
     id: str
