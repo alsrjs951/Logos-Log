@@ -73,6 +73,9 @@ class RAGService:
         # 1단계: 쿼리 영어 번역 및 학술 키워드 확장 (Query Expansion)
         yield f"data: {json.dumps({'type': 'status', 'data': 'translating'}, ensure_ascii=False)}\n\n"
         english_query = await self._expand_query(query)
+        
+        # 장기 기억: 사용자 가치 프로필 로드
+        value_profile = self._get_user_value_profile()
             
         # 2단계: 질문 임베딩 및 하이브리드 검색
         yield f"data: {json.dumps({'type': 'status', 'data': 'searching'}, ensure_ascii=False)}\n\n"
@@ -133,6 +136,7 @@ class RAGService:
                     "3. 일기 성찰이 성공적으로 분석되고 논문 정보가 포함되었으므로, '논문 자료를 찾지 못했다' 또는 '매칭되는 논문이 없다'는 뉘앙스의 부정적인 안내 문구를 절대로 답변에 출력하지 마십시오.\n"
                     "4. 사용자의 일기 속 고민을 의미치료 관점(예: 태도의 가치, 시련 속 의미 찾기, 선택과 책임)으로 전환할 수 있는 가능성을 정중히 제안해 보세요.\n"
                     "5. 답변 마무리에는 일기 내용을 토대로 사용자가 스스로 내면의 답을 찾아가도록 돕는 '소크라테스식 열린 역질문'을 1~2개 반드시 던져 대화를 이어가십시오.\n\n"
+                    f"{value_profile}"
                     f"[학술 논문 내용]\n{context_text}"
                 )
             else:
@@ -142,7 +146,8 @@ class RAGService:
                     "1. 사용자가 쓴 일기의 주제와 관련하여 직접 매칭되는 특정 논문 자료를 찾지 못했습니다. 답변의 서두에 다음과 같이 자연스럽게 안내하십시오: "
                     "\"작성하신 일기와 밀접하게 부합하는 논문 자료는 찾지 못했지만, 의미치료와 심리학적 원칙을 바탕으로 마음에 대해 깊은 대화를 나누고 싶습니다.\"\n"
                     "2. 논문 직접 인용 없이도, 빅터 프랭클의 의미 치료 이론 및 긍정 심리학 지식을 기반으로 깊이 있고 따뜻한 대답과 공감을 구성하십시오.\n"
-                    "3. 답변의 마지막에는 사용자가 자신의 상황을 찬찬히 되돌아볼 수 있게 돕는 열린 소크라테스식 역질문을 1~2개 포함하세요."
+                    "3. 답변의 마지막에는 사용자가 자신의 상황을 찬찬히 되돌아볼 수 있게 돕는 열린 소크라테스식 역질문을 1~2개 포함하세요.\n\n"
+                    f"{value_profile}"
                 )
         else:
             # 일반 챗 대화용 프롬프트
@@ -155,6 +160,7 @@ class RAGService:
                     "3. 상투적인 위로(\"힘드셨겠네요\", \"힘내세요\")는 피하고, 사용자의 마음에 깊이 공감한 후 그 안의 감정을 정돈해 주는 반영적 태도를 취하세요.\n"
                     "4. 해결책을 성급하게 직접 주지 마십시오. 대신 사용자가 스스로 가치와 의미(창조적 가치, 경험적 가치, 태도적 가치)를 깨달을 수 있도록 유도하세요.\n"
                     "5. 대화의 마무리에는 사용자가 자신의 상황을 되돌아보고 성찰할 수 있는 구체적이고 깊이 있는 '소크라테스식 열린 질문(역질문)'을 1~2개 던져주세요.\n\n"
+                    f"{value_profile}"
                     f"[학술 논문 내용]\n{context_text}"
                 )
             else:
@@ -165,7 +171,8 @@ class RAGService:
                     "\"고민하신 내용과 직접적으로 매칭되는 특정 학술 논문은 찾지 못했지만, 의미치료와 심리학적 관점에서 이야기를 나누어보고 싶습니다.\"\n"
                     "2. 특정 논문 인용 없이도, 빅터 프랭클의 의미 치료 이론(시련을 가치로 승화하기, 고통 속에서 태도 선택하기) 및 긍정 심리학 지식을 기반으로 깊이 있고 따뜻한 대답을 구성하세요.\n"
                     "3. 해결책을 직접 제시하지 말고, 사용자가 스스로 생각하여 내면의 자유와 책임을 인식하도록 소크라테스식 질문을 건네세요.\n"
-                    "4. 답변 끝에는 성찰을 이끌어낼 수 있는 열린 질문(역질문)을 반드시 1~2개 포함하세요."
+                    "4. 답변 끝에는 성찰을 이끌어낼 수 있는 열린 질문(역질문)을 반드시 1~2개 포함하세요.\n\n"
+                    f"{value_profile}"
                 )
         
         messages = [SystemMessage(content=system_prompt)]
@@ -304,3 +311,31 @@ class RAGService:
             print(f"Error during RAG re-ranking: {e}", flush=True)
             # 재정렬 오류 시 안전하게 상위 3개 기본 리턴
             return documents[:3]
+
+    def _get_user_value_profile(self) -> str:
+        """
+        Supabase DB의 value_cards 테이블에서 사용자가 과거에 깨닫고 저장한 
+        최신 5개의 가치 카드(키워드 및 인사이트)를 가져와 프롬프트 주입용 마크다운 문자열로 포맷팅합니다.
+        """
+        try:
+            response = self.supabase.table("value_cards")\
+                .select("keyword, insight")\
+                .order("created_at", desc=True)\
+                .limit(5)\
+                .execute()
+            
+            cards = response.data
+            if not cards:
+                return ""
+                
+            profile_text = "\n[사용자가 과거 성찰을 통해 깨달아 저장한 핵심 가치 목록]\n"
+            for card in cards:
+                keyword = card.get("keyword", "").strip()
+                insight = card.get("insight", "").strip()
+                if keyword and insight:
+                    profile_text += f"- 핵심 가치: **{keyword}** | 인사이트: \"{insight}\"\n"
+            profile_text += "\n[행동 지침] 대화 시 사용자의 과거 가치 목록을 은연중에 상기시키거나, 오늘의 고민과 자연스럽게 결합하여 1인칭 반영 및 질문을 전개하십시오. 단, 과거 가치를 부자연스럽게 나열하지 말고 대화의 흐름 속에 자연스럽게 스며들도록 인용하십시오.\n"
+            return profile_text
+        except Exception as e:
+            print(f"Error fetching user value profile: {e}", flush=True)
+            return ""
