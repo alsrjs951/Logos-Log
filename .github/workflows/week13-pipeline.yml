@@ -43,6 +43,9 @@ jobs:
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         working-directory: assignments/week13
         run: |
+          # Create 'experiment' label if it does not exist
+          gh label create "experiment" --color "0275d8" --description "Experiment reports and decisions" || true
+
           # Check if an issue with this title is already open to prevent duplication
           EXISTING_ISSUE=$(gh issue list --search "label:experiment [Weekly Report]" --state open --json number -q '.[0].number')
           
