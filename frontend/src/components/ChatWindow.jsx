@@ -12,6 +12,10 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  
+  // 중복 실행 및 스트림 레이스 컨디션을 방지하기 위한 Ref 추가
+  const processedJournalIdRef = useRef(null);
+  const abortControllerRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -21,9 +25,24 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
     scrollToBottom();
   }, [messages]);
 
+  // 컴포넌트 언마운트 시 진행 중인 요청 취소 클린업
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // initialJournal이 넘어오면 채팅창을 비우고 자동으로 일기 RAG 분석을 시작합니다.
   useEffect(() => {
     if (initialJournal) {
+      // 이미 같은 일기 ID로 분석 요청을 보냈다면 중복 처리 방지
+      if (processedJournalIdRef.current === initialJournal.id) {
+        return;
+      }
+      processedJournalIdRef.current = initialJournal.id;
+      
       setMessages([]); // 기존 메시지 초기화
       
       const emotionEmojiMap = {
@@ -47,6 +66,15 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
   }, [initialJournal]);
 
   const handleSendMessage = async (query, isJournalOverride = false) => {
+    // 이미 진행 중인 이전 RAG 요청이 있다면 강제로 취소(Abort)하여 혼선 방지
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // 새로운 AbortController 인스턴스 생성 및 Ref 저장
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     // 1. 사용자 메시지 추가 (일기 분석 요청이면 읽기 쉽게 포맷)
     const displayContent = isJournalOverride 
       ? `📖 **[일기 분석 시작]**\n\n**제목:** ${query.split('\n')[1].replace('제목: ', '')}\n**감정:** ${query.split('\n')[2].replace('감정 상태: ', '')}\n\n${query.split('\n').slice(4).join('\n')}`
@@ -74,6 +102,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
         headers: {
           'Content-Type': 'application/json',
         },
+        signal: controller.signal, // AbortController 신호 바인딩
         body: JSON.stringify({ 
           query, 
           history: historyData,
@@ -141,6 +170,11 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
         }
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        // 이전 비동기 요청 취소 시에는 에러 화면 처리 없이 조용히 무시함
+        console.log("Previous request aborted.");
+        return;
+      }
       console.error('Error fetching chat:', error);
       setMessages(prev => {
         const newMessages = [...prev];
@@ -148,6 +182,11 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
         return newMessages;
       });
       setIsLoading(false);
+    } finally {
+      // 본인이 마지막으로 할당한 컨트롤러라면 해제
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
