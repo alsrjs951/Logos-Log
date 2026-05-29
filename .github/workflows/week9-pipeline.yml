@@ -1,0 +1,263 @@
+name: Week 9 Pipeline — Security, Versioning, Publish & Docker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignments/week9/**'
+      - '.github/workflows/week9-pipeline.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assignments/week9/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ── 1. 보안 스캔 Job (npm audit & Snyk) ──────────────────────────────────────
+  security-scan:
+    name: Security Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        working-directory: assignments/week9
+        run: npm install --package-lock-only
+
+      - name: Run npm audit
+        id: audit
+        working-directory: assignments/week9
+        run: |
+          npm audit --json > audit-report.json || true
+          cat audit-report.json
+        # audit-report.json을 생성하고 파이프가 끊기지 않도록 || true 사용
+
+      - name: Generate Security Report and Publish to Summary
+        working-directory: assignments/week9
+        run: |
+          echo "### 🔒 Security Scan Report (npm audit)" >> $GITHUB_STEP_SUMMARY
+          
+          # Check if report contains vulnerabilities using jq
+          if jq -e '.metadata.vulnerabilities' audit-report.json > /dev/null; then
+            CRITICAL=$(jq '.metadata.vulnerabilities.critical' audit-report.json)
+            HIGH=$(jq '.metadata.vulnerabilities.high' audit-report.json)
+            MODERATE=$(jq '.metadata.vulnerabilities.moderate' audit-report.json)
+            LOW=$(jq '.metadata.vulnerabilities.low' audit-report.json)
+            TOTAL=$((CRITICAL + HIGH + MODERATE + LOW))
+            
+            echo "| Severity | Vulnerabilities Count |" >> $GITHUB_STEP_SUMMARY
+            echo "| :--- | :---: |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔵 Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Total** | **$TOTAL** |" >> $GITHUB_STEP_SUMMARY
+            
+            # Export counts to env for issue creation check
+            echo "critical_vuls=$CRITICAL" >> $GITHUB_ENV
+            echo "high_vuls=$HIGH" >> $GITHUB_ENV
+            echo "total_vuls=$TOTAL" >> $GITHUB_ENV
+          else
+            echo "✅ No vulnerabilities found by npm audit." >> $GITHUB_STEP_SUMMARY
+            echo "total_vuls=0" >> $GITHUB_ENV
+          fi
+
+      - name: Snyk Security Scan (Conditional)
+        if: env.SNYK_TOKEN != ''
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+
+      - name: Automatically Create Issue for High/Critical Vulnerabilities
+        if: github.ref == 'refs/heads/main' && (env.critical_vuls > 0 || env.high_vuls > 0)
+        run: |
+          # Check if there is already an open security issue to prevent duplicates
+          EXISTING_ISSUE=$(gh issue list --search "label:security [Security Alert]" --state open --json number -q '.[0].number')
+          
+          if [ -z "$EXISTING_ISSUE" ]; then
+            gh issue create \
+              --title "⚠️ [Security Alert] Critical/High vulnerabilities found in week9" \
+              --body "### npm audit Security Alert
+              Automated pipelines detected **${{ env.total_vuls }}** vulnerabilities in the week9 dependencies.
+              
+              - **Critical:** ${{ env.critical_vuls }}
+              - **High:** ${{ env.high_vuls }}
+              
+              Please review and execute \`npm audit fix\` or upgrade the vulnerable packages.
+              
+              *Report generated automatically by GitHub Actions.*" \
+              --label "security"
+            echo "Security issue created."
+          else
+            echo "An active security issue (#$EXISTING_ISSUE) is already open. Skipping duplication."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 2. 버전 업데이트 & npm 패키지 배포 Job ─────────────────────────────────
+  publish-package:
+    name: Auto version update & Publish Package
+    needs: security-scan
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Commit history matches for git pushes
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@alsrjs951'
+
+      - name: Install dependencies
+        working-directory: assignments/week9
+        run: npm install
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Increment Patch Version
+        id: version_bump
+        working-directory: assignments/week9
+        run: |
+          # Increment patch version and create commit/tag
+          npm version patch -m "chore(release): bump version to %s [skip ci]"
+          
+          # Extract the new version name
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          echo "Bumped to version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        # Note: npm version updates package.json and tags it.
+
+      - name: Export version output
+        id: get_version
+        run: |
+          VERSION=$(node -e "console.log(require('./assignments/week9/package.json').version)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Push Git changes & tags
+        run: |
+          # Push the version commit and tags back to main
+          git push origin main --follow-tags
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Package to GitHub Packages
+        working-directory: assignments/week9
+        run: |
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 3. Docker 이미지 빌드, GHCR 푸시 및 로컬 구동 검증 ─────────────────────────
+  docker-build-verify:
+    name: Docker Build, Push and Local Verification
+    needs: publish-package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main # Pull the bumped package.json from publish-package job
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          VERSION=$(node -e "console.log(require('./assignments/week9/package.json').version)")
+          echo "App Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Lowercase Owner Name (Required for GHCR)
+        id: prep
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./assignments/week9
+          push: true
+          tags: |
+            ghcr.io/${{ steps.prep.outputs.owner }}/week9-app:latest
+            ghcr.io/${{ steps.prep.outputs.owner }}/week9-app:${{ steps.get_version.outputs.version }}
+
+      - name: Run and Verify Docker Container Locally
+        run: |
+          IMAGE_NAME="ghcr.io/${{ steps.prep.outputs.owner }}/week9-app:latest"
+          echo "Running Docker container from $IMAGE_NAME..."
+          docker run -d -p 3000:3000 --name week9-test-server $IMAGE_NAME
+          
+          echo "Waiting for server startup health check..."
+          SERVER_UP=false
+          for i in {1..15}; do
+            if curl -s http://localhost:3000/health > /dev/null; then
+              SERVER_UP=true
+              echo "Server is successfully running on port 3000!"
+              break
+            fi
+            echo "Waiting... ($i/15)"
+            sleep 1
+          done
+          
+          if [ "$SERVER_UP" = false ]; then
+            echo "❌ Timeout waiting for server startup."
+            docker logs week9-test-server
+            exit 1
+          fi
+          
+          echo "=== 1. Healthcheck Endpoint Response ==="
+          curl -s -v http://localhost:3000/health
+          echo ""
+          
+          echo "=== 2. Root Endpoint Response ==="
+          RESPONSE=$(curl -s http://localhost:3000/)
+          echo "Response: $RESPONSE"
+          
+          # Match response keyword
+          if echo "$RESPONSE" | grep -q "Week 9 DevOps Demo"; then
+            echo "✅ Local container execution verification SUCCESS!"
+          else
+            echo "❌ Local container execution verification FAILED!"
+            docker logs week9-test-server
+            exit 1
+          fi
+          
+          # Cleanup
+          docker stop week9-test-server
+          docker rm week9-test-server

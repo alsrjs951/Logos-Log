@@ -1,0 +1,22 @@
+{
+  "name": "@alsrjs951/week9-package",
+  "version": "1.0.0",
+  "description": "Week 9 — GitHub Packages, Docker GHCR publish/verify, Dependabot, and Security scan automation",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "echo \"Running dummy test...\" && exit 0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alsrjs951/Logos-Log.git"
+  },
+  "author": "alsrjs951",
+  "license": "MIT"
+}
