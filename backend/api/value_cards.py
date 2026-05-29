@@ -95,7 +95,8 @@ def create_value_card(card: ValueCardCreate):
     try:
         data = {
             "keyword": card.keyword,
-            "insight": card.insight
+            "insight": card.insight,
+            "emotion": card.emotion
         }
         response = db.table("value_cards").insert(data).execute()
         

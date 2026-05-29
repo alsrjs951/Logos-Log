@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Check, X, Loader2 } from 'lucide-react';
 
-const ValueCardModal = ({ messages, onClose, onNavigateToNetwork }) => {
+const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [insight, setInsight] = useState('');
@@ -68,7 +68,8 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork }) => {
         },
         body: JSON.stringify({
           keyword: keyword.trim(),
-          insight: insight.trim()
+          insight: insight.trim(),
+          emotion: emotion
         })
       });
 

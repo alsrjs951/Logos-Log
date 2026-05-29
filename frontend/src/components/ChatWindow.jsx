@@ -294,6 +294,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
           messages={messages} 
           onClose={() => setIsModalOpen(false)} 
           onNavigateToNetwork={onNavigateToNetwork}
+          emotion={initialJournal?.emotion || null}
         />
       )}
     </>

@@ -1,15 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Award, Calendar } from 'lucide-react';
 
+const EMOTION_FILTERS = [
+  { key: 'all', label: '전체 은하', emoji: '🌌', color: 'var(--accent-primary)' },
+  { key: 'happy', label: '행복', emoji: '😊', color: '#10b981' }, // Emerald
+  { key: 'sad', label: '슬픔', emoji: '😢', color: '#6366f1' }, // Indigo
+  { key: 'stressed', label: '스트레스', emoji: '🤯', color: '#ec4899' }, // Pink
+  { key: 'calm', label: '평온', emoji: '🧘', color: '#06b6d4' }, // Cyan
+  { key: 'tired', label: '피로', emoji: '😴', color: '#f59e0b' } // Amber
+];
+
 const MeaningNetwork = () => {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('all');
   
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
 
-  // 3D 회전 제어 변수 (Ref를 사용하여 리렌더링 없이 애니메이션 루프에서 즉각 반영)
+  // 3D 회전 제어 변수 (Ref)
   const rotationRef = useRef({
     x: 0.3, // Y축 중심 회전각
     y: 0.2, // X축 중심 회전각
@@ -30,6 +40,12 @@ const MeaningNetwork = () => {
   // 로컬에 계산된 3D 노드 정보 저장용 Ref
   const nodes3DRef = useRef([]);
   const backgroundStarsRef = useRef([]);
+  const activeFilterRef = useRef('all');
+
+  // 필터 상태 변경 시 Ref 동기화
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+  }, [activeFilter]);
 
   const themeColors = [
     '#6366f1', // Indigo (자아/성찰)
@@ -142,7 +158,8 @@ const MeaningNetwork = () => {
         rotated3D: { x, y, z }, // 회전 후 3D 좌표
         projected2D: { x: 0, y: 0, visible: false }, // 화면에 투영된 2D 좌표
         color: themeColors[center.colorIndex],
-        colorIndex: center.colorIndex
+        colorIndex: center.colorIndex,
+        filterAlpha: 1.0 // 필터 전이(Transition) 애니메이션용 알파값
       });
     });
 
@@ -176,7 +193,7 @@ const MeaningNetwork = () => {
       const centerX = width / 2;
       const centerY = height / 2;
 
-      // 캔버스 초기화 (완전 블랙이 아닌, 약간의 네이비 아우라가 가미된 밤하늘 색)
+      // 캔버스 초기화
       ctx.fillStyle = '#060713';
       ctx.fillRect(0, 0, width, height);
 
@@ -198,20 +215,16 @@ const MeaningNetwork = () => {
       // 1. 성간 별빛 배경(Stars Background) 3D 렌더링
       const stars = backgroundStarsRef.current;
       stars.forEach(star => {
-        // Y축 회전
         let x1 = star.x * cosY - star.z * sinY;
         let z1 = star.z * cosY + star.x * sinY;
-        // X축 회전
         let y2 = star.y * cosX - z1 * sinX;
         let z2 = z1 * cosX + star.y * sinX;
 
-        // 원근 투영
-        const scale = fov / (fov + z2 + 300); // 300은 Z-오프셋
+        const scale = fov / (fov + z2 + 300); 
         const screenX = centerX + x1 * scale;
         const screenY = centerY + y2 * scale;
 
         if (screenX >= 0 && screenX <= width && screenY >= 0 && screenY <= height && z2 > -fov) {
-          // 반짝임 수치 계산 (Sin 파동)
           star.phase += star.twinkleSpeed;
           const alpha = 0.2 + Math.abs(Math.sin(star.phase)) * 0.6;
           
@@ -224,17 +237,16 @@ const MeaningNetwork = () => {
 
       // 2. 3D 노드 좌표 회전 및 원근 투영 적용
       const nodes = nodes3DRef.current;
+      const currentFilter = activeFilterRef.current;
+
       nodes.forEach(node => {
-        // Y축 회전 (X, Z 좌표 변경)
         let x1 = node.base3D.x * cosY - node.base3D.z * sinY;
         let z1 = node.base3D.z * cosY + node.base3D.x * sinY;
-        // X축 회전 (Y, Z 좌표 변경)
         let y2 = node.base3D.y * cosX - z1 * sinX;
         let z2 = z1 * cosX + node.base3D.y * sinX;
 
         node.rotated3D = { x: x1, y: y2, z: z2 };
 
-        // 원근감 스케일 계산
         const scale = fov / (fov + z2 + 250); 
         const screenX = centerX + x1 * scale;
         const screenY = centerY + y2 * scale;
@@ -243,14 +255,18 @@ const MeaningNetwork = () => {
           x: screenX,
           y: screenY,
           scale: scale,
-          visible: z2 > -fov // 너무 가까운(클리핑되는) 오브젝트 방지
+          visible: z2 > -fov
         };
+
+        // 감정 필터링 가중치 보간 연산 (Fade In/Out 애니메이션)
+        const isMatched = currentFilter === 'all' || node.emotion === currentFilter;
+        const targetAlpha = isMatched ? 1.0 : 0.12; // 필터 제외 시 반투명화
+        node.filterAlpha += (targetAlpha - node.filterAlpha) * 0.08;
       });
 
       // 3. 별자리 선(Edges) 3D 그리기
       ctx.lineWidth = 1;
       
-      // 동일 키워드끼리 연결선 형성
       const uniqueKeywords = [...new Set(nodes.map(n => n.keyword))];
       uniqueKeywords.forEach(kw => {
         const groupNodes = nodes.filter(n => n.keyword === kw);
@@ -262,27 +278,27 @@ const MeaningNetwork = () => {
             const nB = groupNodes[j];
 
             if (nA.projected2D.visible && nB.projected2D.visible) {
-              // 선택되었거나 호버된 노드에 연관된 선이면 두껍게 강조
               const isHighlighted = selectedNode && (selectedNode.id === nA.id || selectedNode.id === nB.id);
               const isHovered = mouseStateRef.current.hoveredNodeId === nA.id || mouseStateRef.current.hoveredNodeId === nB.id;
 
-              // 원근에 따른 선 투명도 조절
+              // 원근에 따른 선 투명도 및 필터 투명도 결합
               const avgZ = (nA.rotated3D.z + nB.rotated3D.z) / 2;
               const zAlpha = Math.max(0.05, 1 - (avgZ + 250) / 500);
+              const filterAlpha = (nA.filterAlpha + nB.filterAlpha) / 2; // 선 양끝 노드 필터 알파 평균
 
               ctx.beginPath();
               ctx.moveTo(nA.projected2D.x, nA.projected2D.y);
               ctx.lineTo(nB.projected2D.x, nB.projected2D.y);
               
               if (isHighlighted || isHovered) {
-                ctx.strokeStyle = groupColor;
+                ctx.strokeStyle = `rgba(${hexToRgb(groupColor)}, ${filterAlpha})`;
                 ctx.lineWidth = 2.0;
                 ctx.setLineDash([]);
                 ctx.stroke();
               } else {
-                ctx.strokeStyle = `rgba(${hexToRgb(groupColor)}, ${zAlpha * 0.35})`;
+                ctx.strokeStyle = `rgba(${hexToRgb(groupColor)}, ${zAlpha * 0.35 * filterAlpha})`;
                 ctx.lineWidth = 0.8;
-                ctx.setLineDash([2, 4]); // 미려한 점선 연출
+                ctx.setLineDash([2, 4]); 
                 ctx.stroke();
               }
             }
@@ -290,7 +306,7 @@ const MeaningNetwork = () => {
         }
       });
 
-      // 4. 노드 그리기 (깊이 역순 정렬: Z가 높은(깊은) 노드부터 렌더링하여 겹침 처리)
+      // 4. 노드 그리기 (깊이 역순 정렬)
       const sortedNodes = [...nodes].sort((a, b) => b.rotated3D.z - a.rotated3D.z);
       
       sortedNodes.forEach(node => {
@@ -300,18 +316,21 @@ const MeaningNetwork = () => {
         const isSelected = selectedNode && selectedNode.id === node.id;
         const isHovered = mouseStateRef.current.hoveredNodeId === node.id;
 
-        // 원근에 따른 크기 및 불투명도 보정
+        // 원근 깊이 불투명도에 필터 알파(filterAlpha)를 최종 곱함
         const baseRadius = isSelected ? 9 : isHovered ? 7.5 : 5.5;
         const radius = baseRadius * scale;
-        const opacity = Math.max(0.2, Math.min(1.0, 1 - (node.rotated3D.z + 100) / 400));
+        const depthOpacity = Math.max(0.2, Math.min(1.0, 1 - (node.rotated3D.z + 100) / 400));
+        const finalOpacity = depthOpacity * node.filterAlpha;
+
+        // 필터링에서 제외되고 호버되지 않은 노드는 클릭 차단
+        const isInteractive = currentFilter === 'all' || node.emotion === currentFilter || isHovered;
 
         // 4-1. 선택/호버 시 네온 빛 후광 글로우 효과 (Canvas shadow 기능 사용)
-        if (isSelected || isHovered) {
+        if ((isSelected || isHovered) && node.filterAlpha > 0.3) {
           ctx.save();
           ctx.shadowBlur = isSelected ? 22 : 14;
           ctx.shadowColor = node.color;
           
-          // 외부 아우라 서클
           ctx.beginPath();
           ctx.arc(x, y, radius * 2.2, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(${hexToRgb(node.color)}, 0.15)`;
@@ -324,30 +343,28 @@ const MeaningNetwork = () => {
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = isSelected 
           ? '#ffffff' 
-          : `rgba(${hexToRgb(node.color)}, ${opacity})`;
-        ctx.strokeStyle = '#ffffff';
+          : `rgba(${hexToRgb(node.color)}, ${finalOpacity})`;
+        
+        ctx.strokeStyle = `rgba(255, 255, 255, ${node.filterAlpha})`;
         ctx.lineWidth = isSelected ? 2 : 0.5;
         ctx.stroke();
         ctx.fill();
 
-        // 4-3. 텍스트 라벨 그리기 (선택 또는 호버된 경우에만 미려하게 띄움)
-        if (isSelected || isHovered) {
+        // 4-3. 텍스트 라벨 그리기 (선택 또는 호버된 경우에만 띄움)
+        if ((isSelected || isHovered) && node.filterAlpha > 0.3) {
           ctx.font = `bold ${isSelected ? '12px' : '10px'} Inter, sans-serif`;
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
           
-          // 텍스트 배경 반투명 박스
           const text = node.keyword;
           const textWidth = ctx.measureText(text).width;
           ctx.fillStyle = 'rgba(10, 11, 26, 0.85)';
           ctx.fillRect(x - textWidth/2 - 6, y - radius - 20, textWidth + 12, 18);
           
-          // 테두리 글로우 효과
           ctx.strokeStyle = `rgba(${hexToRgb(node.color)}, 0.5)`;
           ctx.lineWidth = 1;
           ctx.strokeRect(x - textWidth/2 - 6, y - radius - 20, textWidth + 12, 18);
 
-          // 텍스트 드로잉
           ctx.fillStyle = '#ffffff';
           ctx.fillText(text, x, y - radius - 7);
         }
@@ -400,7 +417,7 @@ const MeaningNetwork = () => {
       const dx = x - state.currentX;
       const dy = y - state.currentY;
 
-      rotationRef.current.targetX += dx * 0.007; // 드래그 회전 감도
+      rotationRef.current.targetX += dx * 0.007; 
       rotationRef.current.targetY = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.targetY + dy * 0.007));
 
       state.currentX = x;
@@ -410,15 +427,19 @@ const MeaningNetwork = () => {
     // 2. 마우스 호버(Hover) 중인 3D 노드 검출 (2D 투영점 거리 계산)
     let hoveredNode = null;
     const nodes = nodes3DRef.current;
+    const currentFilter = activeFilterRef.current;
     
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       if (node.projected2D.visible) {
+        // 필터링에 걸쳐서 활성화된 노드만 호버를 감지 (비활성 노드는 클릭 방지)
+        const isMatched = currentFilter === 'all' || node.emotion === currentFilter;
+        if (!isMatched) continue;
+
         const dx = x - node.projected2D.x;
         const dy = y - node.projected2D.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // 2D 스크린상 12px 이내에 들어오면 호버로 간주
         if (dist < 12) {
           hoveredNode = node;
           break;
@@ -438,7 +459,6 @@ const MeaningNetwork = () => {
   const handleMouseUpOrLeave = (e) => {
     const state = mouseStateRef.current;
     
-    // 만약 드래그 거리가 극히 미세하다면 클릭(Click) 이벤트로 판별하여 노드 선택
     if (state.isDown) {
       const canvas = canvasRef.current;
       if (canvas && e.type === 'mouseup') {
@@ -448,7 +468,6 @@ const MeaningNetwork = () => {
         const distMoved = Math.sqrt(Math.pow(endX - state.startX, 2) + Math.pow(endY - state.startY, 2));
 
         if (distMoved < 5) {
-          // 노드 클릭 판정
           const nodes = nodes3DRef.current;
           const clickedNode = nodes.find(n => n.id === state.hoveredNodeId);
           if (clickedNode) {
@@ -464,7 +483,6 @@ const MeaningNetwork = () => {
     }
   };
 
-  // Hex 색상을 RGB 콤마 문자열로 파싱하는 헬퍼 함수
   const hexToRgb = (hex) => {
     const cleanHex = hex.replace('#', '');
     const r = parseInt(cleanHex.substring(0, 2), 16);
@@ -502,6 +520,55 @@ const MeaningNetwork = () => {
         <div className="network-layout">
           {/* 좌측: 3D 별자리 은하계 드래그 뷰포트 */}
           <div className="network-graph-panel 3d-viewport-panel" style={{ height: '500px', position: 'relative' }}>
+            
+            {/* 감정 은하수 필터 컨트롤러 */}
+            <div className="emotion-filter-bar glass-panel" style={{ position: 'absolute', top: '15px', left: '15px', zIndex: 10, display: 'flex', gap: '8px', padding: '6px 10px', borderRadius: '20px', background: 'rgba(10, 11, 26, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', flexWrap: 'wrap' }}>
+              {EMOTION_FILTERS.map((filter) => {
+                const isSelected = activeFilter === filter.key;
+                const nodeCount = filter.key === 'all' 
+                  ? cards.length 
+                  : cards.filter(c => c.emotion === filter.key).length;
+
+                return (
+                  <button
+                    key={filter.key}
+                    onClick={() => {
+                      setActiveFilter(filter.key);
+                      // 필터를 전환하면 선택 노드를 그에 매칭되는 첫 번째로 임시 전환
+                      const matched = filter.key === 'all' 
+                        ? cards 
+                        : cards.filter(c => c.emotion === filter.key);
+                      if (matched.length > 0) {
+                        setSelectedNode(matched[0]);
+                      } else {
+                        setSelectedNode(null);
+                      }
+                    }}
+                    style={{
+                      background: isSelected ? filter.color : 'transparent',
+                      color: isSelected ? '#ffffff' : 'var(--text-muted)',
+                      border: 'none',
+                      padding: '4px 10px',
+                      borderRadius: '15px',
+                      fontSize: '0.78rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.25s',
+                      fontFamily: 'inherit',
+                      boxShadow: isSelected ? `0 2px 10px ${filter.color}50` : 'none'
+                    }}
+                  >
+                    <span>{filter.emoji}</span>
+                    <span>{filter.label}</span>
+                    <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>({nodeCount})</span>
+                  </button>
+                );
+              })}
+            </div>
+
             <canvas
               ref={canvasRef}
               className="network-canvas-3d"
@@ -517,13 +584,17 @@ const MeaningNetwork = () => {
           </div>
 
           {/* 우측: 상세 가치 성찰 카드 피드백 */}
-          {selectedNode && (
+          {selectedNode ? (
             <div className="network-detail-panel glass-panel detail-3d animate-fade-in">
-              <div className="detail-card-badge">
+              <div className="detail-card-badge" style={{
+                background: `rgba(${hexToRgb(selectedNode.color || '#6366f1')}, 0.15)`,
+                borderColor: `rgba(${hexToRgb(selectedNode.color || '#6366f1')}, 0.3)`,
+                color: selectedNode.color || 'var(--accent-primary)'
+              }}>
                 <Award size={14} />
                 <span>성찰 가치 노드</span>
               </div>
-              <h2 className="detail-card-keyword" style={{ color: selectedNode.color }}>
+              <h2 className="detail-card-keyword" style={{ color: selectedNode.color || 'var(--accent-primary)' }}>
                 {selectedNode.keyword}
               </h2>
               
@@ -539,6 +610,14 @@ const MeaningNetwork = () => {
                   <span>{formatDate(selectedNode.created_at)} 아카이브됨</span>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="network-detail-panel glass-panel detail-3d animate-fade-in" style={{ justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', textAlign: 'center', padding: '40px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '15px' }}>🌌</div>
+              <p style={{ fontSize: '0.88rem', lineHeight: '1.6' }}>
+                선택된 감정 필터(<strong>{EMOTION_FILTERS.find(f => f.key === activeFilter)?.label}</strong>)에 속한<br />
+                가치 노드가 성찰 은하에 아직 존재하지 않습니다.
+              </p>
             </div>
           )}
         </div>
