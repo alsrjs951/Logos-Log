@@ -5,7 +5,7 @@ import SourceCards from './SourceCards';
 import ValueCardModal from './ValueCardModal';
 import { Bot, User } from 'lucide-react';
 
-const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
+const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork }) => {
   const [messages, setMessages] = useState([
     { role: 'bot', content: '안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는 Logos-Log AI입니다. 왼쪽 메뉴에서 일기를 쓰거나 바로 질문을 입력하여 대화를 나누어보세요.', sources: [] }
   ]);
@@ -258,9 +258,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
         <ValueCardModal 
           messages={messages} 
           onClose={() => setIsModalOpen(false)} 
-          onSaveSuccess={() => {
-            // 성찰 카드가 성공적으로 저장되면 알림
-          }}
+          onNavigateToNetwork={onNavigateToNetwork}
         />
       )}
     </>

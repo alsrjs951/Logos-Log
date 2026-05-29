@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, Check, X, Loader2 } from 'lucide-react';
 
-const ValueCardModal = ({ messages, onClose, onSaveSuccess }) => {
+const ValueCardModal = ({ messages, onClose, onNavigateToNetwork }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [insight, setInsight] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   useEffect(() => {
     // 1. 대화 히스토리에서 가치 추출 API 호출
@@ -75,9 +76,7 @@ const ValueCardModal = ({ messages, onClose, onSaveSuccess }) => {
         throw new Error('가치 카드 저장 실패');
       }
 
-      alert('나의 실존적 가치 카드가 아카이브에 성공적으로 저장되었습니다! 🌐');
-      if (onSaveSuccess) onSaveSuccess();
-      onClose();
+      setIsSuccess(true);
     } catch (err) {
       console.error('Error saving value card:', err);
       alert('가치 카드 저장 도중 데이터베이스 오류가 발생했습니다.');
@@ -90,13 +89,44 @@ const ValueCardModal = ({ messages, onClose, onSaveSuccess }) => {
     <div className="modal-overlay">
       <div className="modal-content glass-panel animate-fade-in">
         <div className="modal-header">
-          <h3>💡 실존 가치 카드 아카이브</h3>
+          <h3>{isSuccess ? '✨ 가치 노드 활성화' : '💡 실존 가치 카드 아카이브'}</h3>
           <button className="modal-close-btn" onClick={onClose} disabled={isSaving}>
             <X size={18} />
           </button>
         </div>
 
-        {isLoading ? (
+        {isSuccess ? (
+          <div className="modal-success-body animate-fade-in" style={{ padding: '30px 10px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+            <div className="success-icon-wrapper" style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', border: '1px solid rgba(16, 185, 129, 0.3)', animation: 'pulse 2s infinite ease-in-out' }}>
+              <Check size={36} color="#10b981" />
+            </div>
+            <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>새로운 성찰 별자리 탄생!</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: '1.6', margin: '0 20px', maxWidth: '360px' }}>
+              핵심 가치 키워드 <strong style={{ color: 'var(--accent-secondary)' }}>'{keyword}'</strong>가 나만의 성찰 은하에 노드로 훌륭히 매핑되었습니다.
+            </p>
+            <div className="success-actions" style={{ display: 'flex', gap: '12px', marginTop: '15px', width: '100%', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="success-nav-btn"
+                onClick={() => {
+                  if (onNavigateToNetwork) onNavigateToNetwork();
+                  onClose();
+                }}
+                style={{ background: 'var(--accent-gradient)', border: 'none', padding: '12px 20px', borderRadius: '8px', color: 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.9rem', boxShadow: '0 4px 15px rgba(99, 102, 241, 0.25)', fontFamily: 'inherit' }}
+              >
+                🌌 3D 은하수 보러가기
+              </button>
+              <button 
+                type="button" 
+                className="success-close-btn"
+                onClick={onClose}
+                style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border-glass)', padding: '12px 20px', borderRadius: '8px', color: 'var(--text-main)', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}
+              >
+                대화 계속하기
+              </button>
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="modal-loading-body">
             <Loader2 className="animate-spin" size={32} color="var(--accent-primary)" />
             <p>대화 내용 속에서 당신의 '아하 모먼트'와 핵심 가치를 발견하고 있습니다...</p>

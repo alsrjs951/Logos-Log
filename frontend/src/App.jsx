@@ -115,6 +115,7 @@ function App() {
             <ChatWindow 
               initialJournal={initialJournalForChat} 
               onClearInitialJournal={() => setInitialJournalForChat(null)} 
+              onNavigateToNetwork={() => setCurrentMode('network')}
             />
           )}
           {currentMode === 'network' && (
