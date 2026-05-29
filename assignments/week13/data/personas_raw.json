@@ -1,0 +1,162 @@
+[
+  {
+    "id": "persona-01",
+    "name": "김민지 (Stressed College Student)",
+    "persona_type": "과제에 치이는 대학생",
+    "description": "학업 스트레스가 많고 시간에 늘 쫓깁니다. 주로 시험 기간에 일기를 쓰며, 모바일 앱으로 짧게 일상을 털어놓는 경향이 있습니다.",
+    "diary_sample": "오늘도 시험공부 때문에 밤샜다. 전공 교수님 과제는 왜 이렇게 끝이 없는지 모르겠다. 진짜 다 때려치우고 싶다. 내일 시험 잘 볼 수 있을까 걱정된다.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "AI가 제 일기 요약해주는 거 진짜 최고예요. 너무 바쁜데 제 감정 핵심만 요약해주니까 시간 절약이 많이 돼요.",
+      "experimental-dark-mode": "밤에 누워서 폰 볼 때 어두운 모드가 지원되니까 눈 피로가 훨씬 덜해요. 계속 쓰고 싶어요.",
+      "use-advanced-model": "프리미엄 모델 피드백은 대답이 더 자연스럽고 위로받는 느낌이 드는데, 무료 사용자도 일부 쓸 수 있으면 좋겠어요."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "새로 바뀐 채팅 버튼이 더 잘 보이고 반응 속도도 빨라서 자주 누르게 되는 것 같아요. 대화방 구도도 훨씬 직관적입니다."
+    },
+    "expected_ctr_bias": 0.35
+  },
+  {
+    "id": "persona-02",
+    "name": "이지훈 (Tech Developer)",
+    "persona_type": "효율 중심의 개발자",
+    "description": "감정적인 서술보다는 그날의 태스크, 배운 내용, 트러블슈팅 이력 위주로 글을 씁니다. 간결한 UI를 극도로 선호합니다.",
+    "diary_sample": "Docker caching issue resolved. Added setup-buildx step before login. Build speed improved by 80%. Need to research Kubernetes rollout tomorrow.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "AI 요약이나 챗봇 기능은 크게 필요치 않습니다. 오히려 키워드 자동 추출기가 있어서 나중에 태그 검색할 때 편할 것 같습니다.",
+      "experimental-dark-mode": "다크 모드는 당연히 필수 사양입니다. 라이트 모드는 눈이 아파서 쓸 수 없습니다. 디자인 깔끔하네요.",
+      "use-advanced-model": "고성능 모델이나 경량 모델이나 단순 요약 작업에서는 큰 성능 차이를 느끼지 못했습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "기존의 동그란 버튼보다 하단 바에 내장된 신규 입력 UI가 키보드 포커싱 잡기 더 수월하고 자연스럽습니다. 사용성이 크게 개선되었습니다."
+    },
+    "expected_ctr_bias": 0.28
+  },
+  {
+    "id": "persona-03",
+    "name": "박예진 (Emotional Blogger)",
+    "persona_type": "감수성 풍부한 일기 기록러",
+    "description": "일기를 아주 길게 쓰는 편이며, 감정 단어를 풍부하게 사용합니다. 앱의 감정 분석 및 다이어리 데코 기능을 중요하게 생각합니다.",
+    "diary_sample": "오늘 가을 하늘이 너무 맑고 파래서 걷는 내내 행복한 기분이었다. 길가에 핀 코스모스를 보니 괜스레 마음이 몽글몽글해졌다. 카페에서 마신 차가 따뜻해서 완벽한 오후였다.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "AI가 제 일기를 읽고 긍정적이고 따뜻한 말을 건네줄 때 눈물이 날 뻔했어요. 진정한 힐링이 되는 기분입니다.",
+      "experimental-dark-mode": "화면이 너무 껌껌하니까 제 감성적인 분위기랑 잘 안 맞는 것 같아요. 은은한 웜 톤의 다크 모드가 있으면 좋겠어요.",
+      "use-advanced-model": "확실히 챗봇 답변 퀄리티가 다릅니다. 제 숨은 속마음까지 파악해서 더 깊은 조언을 해주는 것 같아 매우 만족스럽습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "새로운 UI는 아기자기한 이모티콘 아이콘들이 강조되어 있어서 채팅을 켜는 즐거움이 있습니다. 이전의 삭막했던 디자인보다 훨씬 감성적이에요."
+    },
+    "expected_ctr_bias": 0.42
+  },
+  {
+    "id": "persona-04",
+    "name": "최성민 (Busy Startup Founder)",
+    "persona_type": "목표 지향적인 사업가",
+    "description": "매일 아침 짧은 투두 리스트와 업무 우선순위를 적습니다. 이동 중에 빠르게 음성이나 단문으로 기록하는 습관이 있습니다.",
+    "diary_sample": "IR 자료 보강 완료. 투자자 미팅 2건 진행. 지표 성장세 칭찬받았으나 LTV 개선책 보완 요구됨. 내일 마케팅 팀이랑 회의 잡아야 함.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "회의록이나 업무 일지를 빠르게 요약하는 용도로 AI가 쓸모가 있습니다. 요약이 아주 명확하네요.",
+      "experimental-dark-mode": "어두운 화면이 집중하기 좋아서 주간에도 다크 모드를 활성화해두고 씁니다.",
+      "use-advanced-model": "비즈니스 관련 복잡한 맥락을 파악하고 비평해주는 수준은 고성능 모델이어야 만족스럽습니다. 돈을 낼 용의가 있습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "새로운 인터페이스가 입력란 크기가 넓어져 한눈에 보이고, 손가락으로 터치하기 훨씬 편리합니다. 업무 중 오타가 줄었습니다."
+    },
+    "expected_ctr_bias": 0.32
+  },
+  {
+    "id": "persona-05",
+    "name": "정은지 (Visual Designer)",
+    "persona_type": "디테일에 민감한 디자이너",
+    "description": "레이아웃, 폰트, 자간, 색감의 정밀함에 매우 민감합니다. 시각적 경험이 좋지 않으면 기능이 좋아도 앱을 이탈합니다.",
+    "diary_sample": "오늘 새로 론칭된 앱 레퍼런스를 서칭했다. 그라데이션 기법과 미세 조절 애니메이션이 돋보였다. 나도 이번 프로젝트에 글래스모피즘 룩을 더 강화해봐야겠다.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "AI 대화방의 말풍선 간격과 여백이 좀 넓어진 것 같아서 시각적으로 시원하고 예뻐 보입니다.",
+      "experimental-dark-mode": "다크 모드일 때 색상 대비 대비율(W3C 가이드라인)이 잘 지켜져서 글자가 흐릿하지 않고 선명하게 잘 읽힙니다.",
+      "use-advanced-model": "모델 자체의 논리력보다는 답변 텍스트가 마크다운으로 깔끔하게 포맷팅되어 표나 글머리 기호로 정렬되는 모습이 보기 좋습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "A안은 너무 기본 템플릿 느낌이었는데, B안의 새로운 대화 인터페이스는 그라디언트 톤과 누르는 반응 효과가 고급스러워서 디자인적으로 훌륭합니다."
+    },
+    "expected_ctr_bias": 0.38
+  },
+  {
+    "id": "persona-06",
+    "name": "한우진 (Reflective Writer)",
+    "persona_type": "성찰하는 밤의 작가",
+    "description": "주로 새벽 감수성이 충만한 시간에 긴 사색 글을 씁니다. 기술에 의존하기보다 자신의 순수한 펜 글씨 감성을 추구합니다.",
+    "diary_sample": "어둠이 깊어질수록 내 안의 소음들은 잦아든다. 밤하늘에 흩어진 별빛들을 바라보며 내가 가야 할 길에 대해 사색했다. 글을 쓴다는 것은 결국 스스로를 마주하는 거울이다.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "일기에 기계가 개입해서 답변을 주는 것 자체가 제 프라이버시를 침해받는 것 같고, 글의 온도를 해친다고 생각되어 거부감이 듭니다. 비활성화 옵션이 있어 다행입니다.",
+      "experimental-dark-mode": "새벽에 글을 쓰기 때문에 다크 모드는 아주 유용합니다. 형광등을 끄고 글을 쓰기 최적입니다.",
+      "use-advanced-model": "AI가 위로한답시고 영혼 없는 기계적인 위로만 반복하니 별 의미를 찾지 못했습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "B안의 바뀐 채팅 UI는 채팅을 강요하는 느낌이 강해서 약간 부담스럽습니다. 저는 글을 쓰는 일기장 화면에만 머무르는 것을 선호합니다."
+    },
+    "expected_ctr_bias": 0.12
+  },
+  {
+    "id": "persona-07",
+    "name": "임소윤 (Daily Habit Tracker)",
+    "persona_type": "일관성 있는 습관 추적가",
+    "description": "매일 같은 시간(잠들기 전 11시)에 하루를 기록하고 습관 달성률을 체크합니다. 통계 지표와 리포트 출력을 애용합니다.",
+    "diary_sample": "물 2L 마시기 성공. 홈트레이닝 45분 완료. 독서 20페이지 진행. 일상 기록 13일차 연속 달성 중. 뿌듯한 하루 마무리.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "AI 요약을 통해 매주 어떤 키워드의 일기를 썼는지 카테고리별로 묶어주는 기능이 습관 모니터링에 큰 도움을 줍니다.",
+      "experimental-dark-mode": "취침 전 습관 기록을 하므로 눈 건강을 위해 다크 모드를 고정하여 활용합니다.",
+      "use-advanced-model": "모델 성능이 고도화될수록 제 습관에 대한 격려 메시지 패턴이 뻔하지 않고 다채로워져서 매일 기록할 맛이 납니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "신규 UI에 추가된 일일 리포트 요약 버튼이 대화 상단에 배치되어 접근 동선이 확실히 쾌적해졌습니다. 매일 터치하게 되네요."
+    },
+    "expected_ctr_bias": 0.36
+  },
+  {
+    "id": "persona-08",
+    "name": "박태영 (Casual Bored User)",
+    "persona_type": "쉽게 질리는 라이트 유저",
+    "description": "일기를 거의 안 쓰며 가끔 생각날 때만 들어옵니다. 앱이 조금만 복잡하거나 귀찮으면 바로 앱을 꺼버리는 경향이 있습니다.",
+    "diary_sample": "귀찮다. 오늘 밥 맛있었다. 끝.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "길게 쓸 말이 없는데 AI가 말을 걸어주고 리액션해주니까 심심풀이용으로 아주 가끔 씁니다.",
+      "experimental-dark-mode": "다크 모드고 뭐고 앱 디자인이 너무 평범해서 그냥 그래요.",
+      "use-advanced-model": "무료 플랜이라 프리미엄 기능은 관심이 전혀 없습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "A안은 챗창 켜는 법을 찾기 귀찮았는데, B안은 하단에 큰 말풍선 아이콘이 생겨서 눈에 띄어 호기심에 한번 눌러보게 만드네요."
+    },
+    "expected_ctr_bias": 0.22
+  },
+  {
+    "id": "persona-09",
+    "name": "이다혜 (Aspiring Novelist)",
+    "persona_type": "스토리텔링형 작가 지망생",
+    "description": "아주 길고 디테일한 소설 구상이나 감정 흐름을 일기장에 기록합니다. 캐릭터 설정이나 단어 검색을 자주 합니다.",
+    "diary_sample": "바람이 나뭇가지 사이를 스칠 때마다 낙엽들이 마른 비명을 지르며 떨어졌다. 주인공은 외투 깃을 올린 채 약속 장소로 무거운 발걸음을 옮겼다. 그녀의 눈빛은 흔들렸으나 결심은 굳어 보였다.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "소설 시놉시스를 넣고 피드백을 요구할 때 AI 챗봇이 캐릭터의 모순점이나 플롯 구성을 보완해주는 파트너 역할을 훌륭히 해냅니다.",
+      "experimental-dark-mode": "집중해서 긴 소설을 써야 하므로 빛 번짐이 없는 다크 모드가 장시간 집필에 아주 적합합니다.",
+      "use-advanced-model": "기본 모델은 상투적인 소설 흐름만 추천하지만, 고급 모델은 훨씬 문학적이고 신선한 단어 선택 및 입체적인 캐릭터 플롯을 제안해 주어 놀랐습니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "장문의 글을 프롬프트로 붙여넣고 질문을 해야 하는데, B안의 확장형 챗 입력 박스가 텍스트 스크롤링과 멀티라인 입력이 지원되어 대단히 유용합니다."
+    },
+    "expected_ctr_bias": 0.40
+  },
+  {
+    "id": "persona-10",
+    "name": "송준서 (Goal-Oriented Professional)",
+    "persona_type": "시간 관리형 비즈니스맨",
+    "description": "하루 스케줄과 성과를 기록하고, 내일 할 일 위주로 타이트하게 메모합니다. 시간 분 단위 스케줄링을 중요시합니다.",
+    "diary_sample": "오전 9시 데일리 스크럼 주재. 오후 2시 파트너사 기술 미팅 진행 및 계약 체결. 오후 5시 분기 실적 보고서 초안 완성. 전반적으로 시간 분배 계획대로 수행됨.",
+    "feature_flag_feedback": {
+      "enable-ai-chat": "그날 적은 스케줄을 자동으로 캘린더나 마일스톤 단위로 파싱하고 요약해 주는 AI 에이전트 기능이 만족스럽습니다.",
+      "experimental-dark-mode": "낮에 미팅 중 태블릿으로 일기를 쓸 때 다크 모드가 화면 번쩍임 없이 정갈해서 미팅 분위기상 단정해 보입니다.",
+      "use-advanced-model": "일정에 대해 우선순위(Eisenhower Matrix)를 자동으로 할당해 비평해 주는 논리 연산 능력은 무조건 프리미엄 모델에서만 매끄럽게 처리됩니다."
+    },
+    "ab_test_feedback": {
+      "new-chat-ui": "신규 UI는 챗방 안에서 이전 업무 맥락(Context)을 스크롤하여 검색하는 필터링 기능이 편리하게 설계되어 있어, 업무 추적 용도로 탁월합니다."
+    },
+    "expected_ctr_bias": 0.34
+  }
+]

@@ -1,0 +1,59 @@
+name: Week 13 Pipeline — A/B Test Simulation & Weekly Issue Report
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignments/week13/**'
+      - '.github/workflows/week13-pipeline.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assignments/week13/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ab-test-simulation:
+    name: Run A/B Test Simulation & Publish Report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Run A/B Test Simulation
+        working-directory: assignments/week13
+        run: |
+          # Execute the simulation and save the markdown output to a report file
+          npm start > report.md
+          cat report.md
+          
+          # Write report directly to GHA Step Summary
+          cat report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Automatically Create Weekly Report GitHub Issue
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        working-directory: assignments/week13
+        run: |
+          # Check if an issue with this title is already open to prevent duplication
+          EXISTING_ISSUE=$(gh issue list --search "label:experiment [Weekly Report]" --state open --json number -q '.[0].number')
+          
+          if [ -z "$EXISTING_ISSUE" ]; then
+            gh issue create \
+              --title "📊 [Weekly Report] A/B Test Metric Summary & Decision (Week 13)" \
+              --body-file report.md \
+              --label "experiment"
+            echo "Weekly experiment report issue created successfully."
+          else
+            echo "A weekly experiment report issue (#$EXISTING_ISSUE) is already open. Skipping duplication."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,11 @@
+{
+  "name": "@alsrjs951/week13-devops",
+  "version": "1.0.0",
+  "description": "Week 13 — LLM Personas, 2-Week A/B Test Metrics, and Automated Weekly Reporting",
+  "main": "src/ab_test_run.js",
+  "scripts": {
+    "start": "node src/ab_test_run.js"
+  },
+  "author": "alsrjs951",
+  "license": "MIT"
+}

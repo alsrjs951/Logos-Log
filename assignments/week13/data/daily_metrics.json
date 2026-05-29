@@ -1,0 +1,170 @@
+[
+  {
+    "day": 1,
+    "activeUsers": 553,
+    "variantA": {
+      "exposures": 262,
+      "conversions": 42
+    },
+    "variantB": {
+      "exposures": 291,
+      "conversions": 66
+    }
+  },
+  {
+    "day": 2,
+    "activeUsers": 443,
+    "variantA": {
+      "exposures": 217,
+      "conversions": 33
+    },
+    "variantB": {
+      "exposures": 226,
+      "conversions": 44
+    }
+  },
+  {
+    "day": 3,
+    "activeUsers": 454,
+    "variantA": {
+      "exposures": 228,
+      "conversions": 23
+    },
+    "variantB": {
+      "exposures": 226,
+      "conversions": 64
+    }
+  },
+  {
+    "day": 4,
+    "activeUsers": 431,
+    "variantA": {
+      "exposures": 201,
+      "conversions": 29
+    },
+    "variantB": {
+      "exposures": 230,
+      "conversions": 50
+    }
+  },
+  {
+    "day": 5,
+    "activeUsers": 364,
+    "variantA": {
+      "exposures": 193,
+      "conversions": 26
+    },
+    "variantB": {
+      "exposures": 171,
+      "conversions": 40
+    }
+  },
+  {
+    "day": 6,
+    "activeUsers": 379,
+    "variantA": {
+      "exposures": 192,
+      "conversions": 27
+    },
+    "variantB": {
+      "exposures": 187,
+      "conversions": 49
+    }
+  },
+  {
+    "day": 7,
+    "activeUsers": 342,
+    "variantA": {
+      "exposures": 181,
+      "conversions": 17
+    },
+    "variantB": {
+      "exposures": 161,
+      "conversions": 41
+    }
+  },
+  {
+    "day": 8,
+    "activeUsers": 321,
+    "variantA": {
+      "exposures": 162,
+      "conversions": 21
+    },
+    "variantB": {
+      "exposures": 159,
+      "conversions": 34
+    }
+  },
+  {
+    "day": 9,
+    "activeUsers": 279,
+    "variantA": {
+      "exposures": 143,
+      "conversions": 16
+    },
+    "variantB": {
+      "exposures": 136,
+      "conversions": 31
+    }
+  },
+  {
+    "day": 10,
+    "activeUsers": 267,
+    "variantA": {
+      "exposures": 133,
+      "conversions": 19
+    },
+    "variantB": {
+      "exposures": 134,
+      "conversions": 37
+    }
+  },
+  {
+    "day": 11,
+    "activeUsers": 225,
+    "variantA": {
+      "exposures": 110,
+      "conversions": 10
+    },
+    "variantB": {
+      "exposures": 115,
+      "conversions": 26
+    }
+  },
+  {
+    "day": 12,
+    "activeUsers": 224,
+    "variantA": {
+      "exposures": 113,
+      "conversions": 13
+    },
+    "variantB": {
+      "exposures": 111,
+      "conversions": 25
+    }
+  },
+  {
+    "day": 13,
+    "activeUsers": 206,
+    "variantA": {
+      "exposures": 103,
+      "conversions": 12
+    },
+    "variantB": {
+      "exposures": 103,
+      "conversions": 27
+    }
+  },
+  {
+    "day": 14,
+    "activeUsers": 206,
+    "variantA": {
+      "exposures": 102,
+      "conversions": 8
+    },
+    "variantB": {
+      "exposures": 104,
+      "conversions": 31
+    }
+  }
+]
