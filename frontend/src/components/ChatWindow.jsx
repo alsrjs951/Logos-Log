@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
 import ValueCardModal from './ValueCardModal';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Loader2 } from 'lucide-react';
 
 const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork }) => {
   const [messages, setMessages] = useState([
@@ -12,6 +12,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeJournalId, setActiveJournalId] = useState(null);
   const messagesEndRef = useRef(null);
   
   // 중복 실행 및 스트림 레이스 컨디션을 방지하기 위한 Ref 추가
@@ -35,51 +36,84 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
     };
   }, []);
 
-  // initialJournal이 넘어오면 채팅창을 비우고 자동으로 일기 RAG 분석을 시작합니다.
+  // initialJournal이 넘어오면 대화 이력이 존재하는지 먼저 조회하고, 없으면 자동으로 일기 RAG 분석을 시작합니다.
   useEffect(() => {
     if (initialJournal) {
-      // 이미 같은 일기 ID로 분석 요청을 보냈다면 중복 처리 방지
+      // 이미 같은 일기 ID로 처리 중이라면 중복 방지
       if (processedJournalIdRef.current === initialJournal.id) {
         return;
       }
       processedJournalIdRef.current = initialJournal.id;
+      setActiveJournalId(initialJournal.id);
 
-      // 성찰 완료된 일기 ID를 localStorage에 등록 및 커스텀 이벤트 전송
-      try {
-        const analyzedIds = JSON.parse(localStorage.getItem('analyzed_journal_ids') || '[]');
-        if (!analyzedIds.includes(initialJournal.id)) {
-          analyzedIds.push(initialJournal.id);
-          localStorage.setItem('analyzed_journal_ids', JSON.stringify(analyzedIds));
-          // 사이드바 일기 목록 리프레시를 위해 전역 이벤트 트리거
-          window.dispatchEvent(new CustomEvent('journal_analyzed', { detail: initialJournal.id }));
+      const fetchHistoryAndStart = async () => {
+        try {
+          setIsLoading(true);
+          setLoadingStage('🔄 과거 성찰 대화 내역을 불러오는 중...');
+          
+          const res = await fetch(`http://localhost:8000/api/chat/history/${initialJournal.id}`);
+          if (res.ok) {
+            const historyData = await res.json();
+            
+            if (historyData && historyData.length > 0) {
+              // 대화 이력이 존재하면 저장된 대화 복원
+              setMessages(historyData);
+              setIsLoading(false);
+              setLoadingStage('');
+              
+              if (onClearInitialJournal) {
+                onClearInitialJournal();
+              }
+              return; // 이력 복원 완료했으므로 신규 분석은 진행하지 않음
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load chat history:", err);
+        } finally {
+          setIsLoading(false);
+          setLoadingStage('');
         }
-      } catch (e) {
-        console.error("LocalStorage write error:", e);
-      }
-      
-      setMessages([]); // 기존 메시지 초기화
-      
-      const emotionEmojiMap = {
-        happy: '😊',
-        sad: '😢',
-        stressed: '🤯',
-        calm: '🧘',
-        tired: '😴'
+
+        // 대화 이력이 없는 경우에만 신규 RAG 분석 세션 실행
+        // 성찰 완료된 일기 ID를 localStorage에 등록 및 커스텀 이벤트 전송
+        try {
+          const analyzedIds = JSON.parse(localStorage.getItem('analyzed_journal_ids') || '[]');
+          if (!analyzedIds.includes(initialJournal.id)) {
+            analyzedIds.push(initialJournal.id);
+            localStorage.setItem('analyzed_journal_ids', JSON.stringify(analyzedIds));
+            // 사이드바 일기 목록 리프레시를 위해 전역 이벤트 트리거
+            window.dispatchEvent(new CustomEvent('journal_analyzed', { detail: initialJournal.id }));
+          }
+        } catch (e) {
+          console.error("LocalStorage write error:", e);
+        }
+        
+        setMessages([]); // 기존 메시지 초기화
+        
+        const emotionEmojiMap = {
+          happy: '😊',
+          sad: '😢',
+          stressed: '🤯',
+          calm: '🧘',
+          tired: '😴'
+        };
+        const emoji = emotionEmojiMap[initialJournal.emotion] || '📝';
+        
+        const queryText = `[일기 분석 요청]\n제목: ${initialJournal.title}\n감정 상태: ${emoji} (${initialJournal.emotion})\n본문:\n${initialJournal.content}`;
+        
+        // 일기 분석 API 요청 시작
+        await handleSendMessage(queryText, true, initialJournal.id);
+        
+        if (onClearInitialJournal) {
+          onClearInitialJournal();
+        }
       };
-      const emoji = emotionEmojiMap[initialJournal.emotion] || '📝';
-      
-      const queryText = `[일기 분석 요청]\n제목: ${initialJournal.title}\n감정 상태: ${emoji} (${initialJournal.emotion})\n본문:\n${initialJournal.content}`;
-      
-      // 일기 분석 API 요청 시작
-      handleSendMessage(queryText, true);
-      
-      if (onClearInitialJournal) {
-        onClearInitialJournal();
-      }
+
+      fetchHistoryAndStart();
     }
   }, [initialJournal]);
 
-  const handleSendMessage = async (query, isJournalOverride = false) => {
+  const handleSendMessage = async (query, isJournalOverride = false, journalIdOverride = null) => {
     // 이미 진행 중인 이전 RAG 요청이 있다면 강제로 취소(Abort)하여 혼선 방지
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -101,14 +135,15 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
     // 2. 봇의 빈 메시지 추가 (스트리밍 수신용)
     setMessages(prev => [...prev, { role: 'bot', content: '', sources: [] }]);
 
-    // 이전 대화 맥락 추출 (일기 분석 요청이면 히스토리 없이 전송)
+    // 이전 대화 맥락 추출 (일기 분석 요청이면 히스토리 없이 전송, 웰컴 메시지는 필터링)
     const historyData = isJournalOverride 
       ? [] 
       : messages
-          .filter(msg => msg.content !== '')
-          .slice(1) // 첫 인사말 제외
+          .filter(msg => msg.content !== '' && !msg.content.startsWith('안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는'))
           .map(msg => ({ role: msg.role, content: msg.content }))
           .slice(-10);
+
+    const targetJournalId = journalIdOverride || activeJournalId;
 
     try {
       // 3. 백엔드 API (SSE) 호출
@@ -121,7 +156,8 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
         body: JSON.stringify({ 
           query, 
           history: historyData,
-          is_journal: isJournalOverride
+          is_journal: isJournalOverride,
+          journal_id: targetJournalId
         })
       });
 

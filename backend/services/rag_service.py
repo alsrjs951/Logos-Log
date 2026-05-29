@@ -65,7 +65,7 @@ class RAGService:
             print(f"Error in query expansion: {e}", flush=True)
             return query
 
-    async def get_streaming_response(self, query: str, history: list = None, is_journal: bool = False) -> AsyncGenerator[str, None]:
+    async def get_streaming_response(self, query: str, history: list = None, is_journal: bool = False, journal_id: str = None) -> AsyncGenerator[str, None]:
         if history is None:
             history = []
             
@@ -166,10 +166,66 @@ class RAGService:
         # 4. 소스(출처) 데이터를 첫 번째 이벤트로 전송 (클라이언트에서 파싱할 수 있게 특수 포맷 사용)
         yield f"data: {json.dumps({'type': 'sources', 'data': sources}, ensure_ascii=False)}\n\n"
         
-        # 5. LLM 스트리밍 응답 (한 글자씩 Yield)
+        # 5. LLM 스트리밍 응답 (한 글자씩 Yield & 누적)
+        full_answer = ""
         async for chunk in self.llm.astream(messages):
             if chunk.content:
+                full_answer += chunk.content
                 yield f"data: {json.dumps({'type': 'chunk', 'data': chunk.content}, ensure_ascii=False)}\n\n"
                 
-        # 6. 스트리밍 종료 알림
+        # 6. 대화 이력 데이터베이스 저장 (journal_id가 전달된 경우에만 수행)
+        if journal_id:
+            try:
+                # 사용자 질문 내용 가공 (일기 분석 시작 요청일 시 마크다운 형태로 변환)
+                user_content = query
+                if query.startswith("[일기 분석 요청]"):
+                    lines = query.split('\n')
+                    title = ""
+                    emotion = ""
+                    body = ""
+                    if len(lines) > 1:
+                        title = lines[1].replace("제목: ", "").strip()
+                    if len(lines) > 2:
+                        emotion = lines[2].replace("감정 상태: ", "").strip()
+                    if len(lines) > 4:
+                        body = "\n".join(lines[4:]).strip()
+                    user_content = f"📖 **[일기 분석 시작]**\n\n**제목:** {title}\n**감정:** {emotion}\n\n{body}"
+
+                # 1) 사용자 질문 메시지 저장
+                user_msg = {
+                    "journal_id": journal_id,
+                    "role": "user",
+                    "content": user_content,
+                    "sources": []
+                }
+                self.supabase.table("chat_messages").insert(user_msg).execute()
+
+                # 2) AI 답변 메시지 저장
+                bot_msg = {
+                    "journal_id": journal_id,
+                    "role": "bot",
+                    "content": full_answer,
+                    "sources": sources
+                }
+                self.supabase.table("chat_messages").insert(bot_msg).execute()
+            except Exception as e:
+                # 저장 오류 시 전체 대화 흐름이 실패하지 않도록 로깅만 수행
+                print(f"Error saving chat message to database: {e}", flush=True)
+
+        # 7. 스트리밍 종료 알림
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    def get_chat_history(self, journal_id: str) -> list:
+        """
+        특정 일기 ID에 종속된 대화 이력을 생성 시간 순으로 조회합니다.
+        """
+        try:
+            response = self.supabase.table("chat_messages")\
+                .select("*")\
+                .eq("journal_id", journal_id)\
+                .order("created_at", desc=False)\
+                .execute()
+            return response.data or []
+        except Exception as e:
+            print(f"Error fetching chat history from database: {e}", flush=True)
+            return []
