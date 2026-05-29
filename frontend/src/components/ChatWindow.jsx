@@ -87,17 +87,25 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal }) => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let done = false;
+      let buffer = '';
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
-          const chunkString = decoder.decode(value, { stream: true });
-          const lines = chunkString.split('\n');
+          // 버퍼에 누적 후 줄바꿈 기준으로 split
+          buffer += decoder.decode(value, { stream: !done });
+          const lines = buffer.split('\n');
+          
+          // 마지막 줄은 불완전한 조각일 수 있으므로 버퍼에 보관하고 lines 목록에서 제외
+          buffer = lines.pop();
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.replace('data: ', '').trim();
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+
+            if (trimmedLine.startsWith('data: ')) {
+              const dataStr = trimmedLine.replace('data: ', '').trim();
               if (!dataStr) continue;
 
               try {

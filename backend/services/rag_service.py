@@ -79,7 +79,7 @@ class RAGService:
         response = self.supabase.rpc("match_documents_hybrid", {
             "query_embedding": query_embedding,
             "query_text": english_query,
-            "match_threshold": 0.25,
+            "match_threshold": 0.56,
             "match_count": 3
         }).execute()
         
