@@ -10,6 +10,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
     { role: 'bot', content: '안녕하세요! 저는 심리학 논문을 기반으로 답변해 드리는 Logos-Log AI입니다. 왼쪽 메뉴에서 일기를 쓰거나 바로 질문을 입력하여 대화를 나누어보세요.', sources: [] }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const messagesEndRef = useRef(null);
   
@@ -42,6 +43,19 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
         return;
       }
       processedJournalIdRef.current = initialJournal.id;
+
+      // 성찰 완료된 일기 ID를 localStorage에 등록 및 커스텀 이벤트 전송
+      try {
+        const analyzedIds = JSON.parse(localStorage.getItem('analyzed_journal_ids') || '[]');
+        if (!analyzedIds.includes(initialJournal.id)) {
+          analyzedIds.push(initialJournal.id);
+          localStorage.setItem('analyzed_journal_ids', JSON.stringify(analyzedIds));
+          // 사이드바 일기 목록 리프레시를 위해 전역 이벤트 트리거
+          window.dispatchEvent(new CustomEvent('journal_analyzed', { detail: initialJournal.id }));
+        }
+      } catch (e) {
+        console.error("LocalStorage write error:", e);
+      }
       
       setMessages([]); // 기존 메시지 초기화
       
@@ -82,6 +96,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
 
     setMessages(prev => [...prev, { role: 'user', content: displayContent }]);
     setIsLoading(true);
+    setLoadingStage('🚀 AI 성찰 세션을 개시하고 있습니다...');
 
     // 2. 봇의 빈 메시지 추가 (스트리밍 수신용)
     setMessages(prev => [...prev, { role: 'bot', content: '', sources: [] }]);
@@ -140,7 +155,17 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
               try {
                 const parsedData = JSON.parse(dataStr);
                 
-                if (parsedData.type === 'sources') {
+                if (parsedData.type === 'status') {
+                  // RAG 단계별로 안내 메시지 설정
+                  const stage = parsedData.data;
+                  if (stage === 'translating') {
+                    setLoadingStage('🔍 성찰 일기의 핵심 주제어 번역 및 영어 학술 키워드로 확장 중...');
+                  } else if (stage === 'searching') {
+                    setLoadingStage('📖 자기결정이론 및 로고테라피 관련 학술 DB에서 매칭 구절 탐색 중...');
+                  } else if (stage === 'generating') {
+                    setLoadingStage('✍️ 분석된 논문 통찰을 엮어 맞춤형 심리학 성찰 답변을 구성하는 중...');
+                  }
+                } else if (parsedData.type === 'sources') {
                   // 출처(Source) 데이터 업데이트
                   setMessages(prev => {
                     const newMessages = [...prev];
@@ -150,6 +175,8 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
                     return newMessages;
                   });
                 } else if (parsedData.type === 'chunk') {
+                  // 첫 텍스트가 도착하는 순간 로딩 안내 문구 클리어
+                  setLoadingStage('');
                   // 타자 치듯 텍스트 이어붙이기
                   setMessages(prev => {
                     const newMessages = [...prev];
@@ -161,6 +188,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
                 } else if (parsedData.type === 'done') {
                   // 완료
                   setIsLoading(false);
+                  setLoadingStage('');
                 }
               } catch (e) {
                 console.error("JSON Parse Error:", e, dataStr);
@@ -182,6 +210,7 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
         return newMessages;
       });
       setIsLoading(false);
+      setLoadingStage('');
     } finally {
       // 본인이 마지막으로 할당한 컨트롤러라면 해제
       if (abortControllerRef.current === controller) {
@@ -242,10 +271,16 @@ const ChatWindow = ({ initialJournal, onClearInitialJournal, onNavigateToNetwork
                   <Bot size={18} color="var(--accent-secondary)" />
                 </div>
               </div>
-            <div className="message-bubble typing-indicator">
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
-              <div className="typing-dot"></div>
+            <div className="message-bubble typing-indicator-container" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px 20px' }}>
+              <div className="typing-stage-text" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Loader2 className="animate-spin" size={14} color="var(--accent-secondary)" />
+                {loadingStage || '성찰 대화를 분석하는 중...'}
+              </div>
+              <div className="typing-indicator" style={{ alignSelf: 'flex-start', margin: 0 }}>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+              </div>
             </div>
           </div>
         )}

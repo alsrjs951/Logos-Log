@@ -37,7 +37,14 @@ const JournalList = ({ journals, onSelectJournal, activeJournalId }) => {
             className={`journal-item ${activeJournalId === journal.id ? 'active' : ''}`}
             onClick={() => onSelectJournal(journal)}
           >
-            <div className="journal-item-title">{journal.title}</div>
+            <div className="journal-item-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{journal.title}</span>
+              {journal.is_analyzed && (
+                <span className="analyzed-badge animate-fade-in" style={{ fontSize: '0.62rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '1px 5px', borderRadius: '10px', fontWeight: '700', flexShrink: 0, letterSpacing: '0.2px' }}>
+                  ✨ 성찰됨
+                </span>
+              )}
+            </div>
             <div className="journal-item-meta">
               <span>{formatDate(journal.created_at)}</span>
               <span className="journal-item-emotion">

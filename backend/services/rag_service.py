@@ -69,13 +69,15 @@ class RAGService:
         if history is None:
             history = []
             
-        # 1. 쿼리 영어 번역 및 학술 키워드 확장 (Query Expansion)
+        # 1단계: 쿼리 영어 번역 및 학술 키워드 확장 (Query Expansion)
+        yield f"data: {json.dumps({'type': 'status', 'data': 'translating'}, ensure_ascii=False)}\n\n"
         english_query = await self._expand_query(query)
             
-        # 2. 질문 임베딩 (번역/확장된 영어 키워드 임베딩 생성)
+        # 2단계: 질문 임베딩 및 하이브리드 검색
+        yield f"data: {json.dumps({'type': 'status', 'data': 'searching'}, ensure_ascii=False)}\n\n"
         query_embedding = self.embeddings.embed_query(english_query)
         
-        # 3. Supabase에서 하이브리드(Vector + FTS) 관련 문서 검색 (임계치 0.25 적용)
+        # Supabase에서 하이브리드(Vector + FTS) 관련 문서 검색 (임계치 0.56 적용)
         response = self.supabase.rpc("match_documents_hybrid", {
             "query_embedding": query_embedding,
             "query_text": english_query,
@@ -98,6 +100,9 @@ class RAGService:
                 "similarity": res.get("similarity", 0)
             })
             context_text += f"\n- {res.get('content')}"
+
+        # 3단계: RAG 답변 생성 돌입
+        yield f"data: {json.dumps({'type': 'status', 'data': 'generating'}, ensure_ascii=False)}\n\n"
 
         # 3. 소크라테스식 대화법 & 의미치료 기반 시스템 프롬프트 생성
         if is_journal:

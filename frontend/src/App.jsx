@@ -27,6 +27,15 @@ function App() {
 
   useEffect(() => {
     fetchJournals();
+
+    const handleJournalAnalyzed = () => {
+      fetchJournals();
+    };
+
+    window.addEventListener('journal_analyzed', handleJournalAnalyzed);
+    return () => {
+      window.removeEventListener('journal_analyzed', handleJournalAnalyzed);
+    };
   }, []);
 
   // 새 일기 작성 완료 후 실행되는 분석 시작 콜백
@@ -100,7 +109,17 @@ function App() {
 
           <div className="sidebar-list-title">나의 감정 성찰 기록</div>
           <JournalList 
-            journals={journals} 
+            journals={journals.map(j => {
+              try {
+                const analyzedIds = JSON.parse(localStorage.getItem('analyzed_journal_ids') || '[]');
+                return {
+                  ...j,
+                  is_analyzed: analyzedIds.includes(j.id)
+                };
+              } catch (e) {
+                return j;
+              }
+            })} 
             onSelectJournal={handleSelectJournal} 
             activeJournalId={activeJournalId} 
           />
