@@ -26,7 +26,12 @@ app = FastAPI(title="Logos-Log API", description="AI 챗봇을 위한 백엔드 
 # 프론트엔드 연동을 위한 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # 보안을 위해 향후 프론트엔드 URL로 변경
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
