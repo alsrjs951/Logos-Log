@@ -1,0 +1,91 @@
+name: Week 12 Pipeline — TDD, Jest 80%+ Coverage & Playwright E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assignments/week12/**'
+      - '.github/workflows/week12-pipeline.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assignments/week12/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Run Jest Unit Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'assignments/week12/package.json'
+
+      - name: Install dependencies
+        working-directory: assignments/week12
+        run: npm install
+
+      - name: Run Jest Unit Tests with Coverage Threshold
+        working-directory: assignments/week12
+        run: |
+          npm run test:cov > coverage-output.txt
+          cat coverage-output.txt
+          
+          # Write coverage results to Step Summary
+          echo "### 📊 Jest Unit Test & Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "All unit tests must pass, and coverage must exceed the 80% threshold globally." >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat coverage-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  e2e-tests:
+    name: Run Playwright E2E Tests
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'assignments/week12/package.json'
+
+      - name: Install dependencies
+        working-directory: assignments/week12
+        run: npm install
+
+      - name: Install Playwright Browsers & System Dependencies
+        working-directory: assignments/week12
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright E2E Tests
+        working-directory: assignments/week12
+        run: |
+          npm run test:e2e > e2e-output.txt
+          cat e2e-output.txt
+          
+          # Write E2E results to Step Summary
+          echo "### 🎭 Playwright E2E Tests Output" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          cat e2e-output.txt >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Playwright Report on Failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: assignments/week12/playwright-report/
+          retention-days: 7

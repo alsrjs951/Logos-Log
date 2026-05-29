@@ -1,0 +1,7 @@
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+e2e-output.txt
+coverage-output.txt
