@@ -1,5 +1,7 @@
 > ⚠️ **본 문서는 생성형 AI(Claude, GPT 등)를 활용하여 작성되었습니다.**
 
+> 🛠️ **구현 현황 노트:** 본 문서는 **초기 기획 초안**입니다. 실제 구현에서 스택이 일부 변경되었습니다 — Vector DB는 **MongoDB Atlas Vector Search**(Supabase 아님), 프론트엔드는 **React + Vite**(Next.js 아님), 임베딩은 **`BAAI/bge-m3` 로컬**(text-embedding-3 아님), LLM은 **gpt-4o-mini**, 인증은 **자체 JWT + bcrypt**입니다. 현재 아키텍처의 정확한 기준은 [architecture.md](./architecture.md)를 참고하세요.
+
 ### **1. 프로젝트명**
 *   **국문:** 로고스 로그 (Logos Log) - 학술 기반 RAG를 활용한 실존적 의미 탐구 저널링 플랫폼
 *   **영문:** Logos Log: An Evidence-based Meaning-Making Journaling Platform using RAG
