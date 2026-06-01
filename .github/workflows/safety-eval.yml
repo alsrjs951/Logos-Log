@@ -1,0 +1,30 @@
+name: Safety Eval
+
+# 위기 감지(detect_crisis)의 안전 회귀를 차단하는 게이트.
+# services/safety.py 는 표준 라이브러리(re)만 사용하므로 의존성 설치 없이 수초 내 실행된다.
+on:
+  pull_request:
+    paths:
+      - 'backend/services/safety.py'
+      - 'backend/eval/**'
+      - '.github/workflows/safety-eval.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/services/safety.py'
+      - 'backend/eval/**'
+      - '.github/workflows/safety-eval.yml'
+  workflow_dispatch:
+
+jobs:
+  crisis-detection:
+    name: Crisis Detection Recall Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run crisis detection evaluation
+        working-directory: backend
+        run: python eval/evaluate_crisis.py
