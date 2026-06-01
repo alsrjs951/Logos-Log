@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-01T15:17:15.037Z",
+  "generatedAt": "2026-06-01T15:24:03.837Z",
   "period": {
-    "since": "2026-05-25T15:17:13.402Z",
-    "until": "2026-06-01T15:17:15.037Z"
+    "since": "2026-05-25T15:24:02.193Z",
+    "until": "2026-06-01T15:24:03.837Z"
   },
   "doraMetrics": {
     "leadTimeForChanges": {
