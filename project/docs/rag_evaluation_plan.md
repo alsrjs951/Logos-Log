@@ -38,31 +38,31 @@
 - 실행기: `backend/eval/evaluate_crisis.py` — Recall/Precision/F1 산출, Recall < 0.95 시 종료 코드 1
 - 특징: 무거운 의존성이 없어 **모든 PR CI에서 게이트로 상시 실행 가능**
 
-### Tier 2 — RAG 검색·답변 품질 (설계됨, 구현 예정)
+### Tier 2 — RAG 검색·답변 품질 (구현됨 · 실행엔 인프라 필요)
+- 실행기: `backend/eval/evaluate_rag.py` (Ragas), 의존성: `backend/eval/requirements-eval.txt`
 - 데이터셋: `backend/eval/golden_set.json` (카테고리별 질문 + 기대 학술 개념 + 기준 논지)
-- 전제: MongoDB `documents` 적재 + `vector_index`, `OPENAI_API_KEY`, `pip install ragas datasets`
+- 전제: MongoDB `documents` 적재 + `vector_index`, `OPENAI_API_KEY`
 - 흐름:
-  1. 각 `question`으로 실제 검색 실행 → 검색 청크(`contexts`)와 생성 답변(`answer`) 수집
-  2. `question / answer / contexts / reference` 를 Ragas 입력 포맷으로 구성
-  3. `faithfulness, answer_relevancy, context_precision, context_recall` 산출
-  4. 카테고리별·전체 평균을 리포트하고 목표 임계값과 비교
+  1. 각 `question`을 **프로덕션 경로**(`get_streaming_response`)로 실행 → 검색 청크(`contexts`)와 생성 답변(`answer`) 수집
+  2. `question / answer / contexts / ground_truth` 를 Ragas 입력 포맷으로 구성
+  3. `context_precision, context_recall, faithfulness, answer_relevancy` 산출
+  4. PRD §6.2 목표와 비교, 미달 시 종료 코드 1
+- ⚠️ 외부 인프라 의존으로 작성 환경에서 실행 검증되지 않음. Ragas는 버전에 민감하므로 핀 버전 기준으로 작성됨.
 
 ---
 
-## 4. 권장 선행 리팩터링
+## 4. 검색 경로 분리 (완료)
 
-현재 검색 로직은 `RAGService.get_streaming_response` 안에 스트리밍 생성과 뒤섞여 있어
-평가에서 "검색 결과만" 떼어내기 어렵다. 다음 추출을 권장한다.
+검색 로직을 `RAGService.retrieve()` 로 추출하여 스트리밍·답변 생성과 분리했다.
+`get_streaming_response`(프로덕션)와 `evaluate_rag.py`(평가)가 **동일한 검색 경로**를 공유하므로,
+평가 점수가 실제 사용자 경험과 일치한다.
 
 ```python
-# 검색 단계만 분리하여 평가·재사용을 쉽게 한다
-async def retrieve(self, query: str) -> list[dict]:
-    """쿼리 확장 → 임베딩 → $vectorSearch → 재랭킹까지 수행하고 청크 리스트를 반환."""
+async def retrieve(self, query, english_query=None) -> tuple:
+    """쿼리 확장 → 임베딩 → $vectorSearch → 필터(≥0.30) → 재랭킹.
+    (재랭킹 청크, 원시 검색 결과) 반환. 스트리밍/생성 부수효과 없음."""
     ...
 ```
-
-이렇게 하면 `evaluate_rag.py`가 답변 생성·스트리밍 부수효과 없이 `contexts`를 얻을 수 있고,
-프로덕션 코드와 평가가 **같은 검색 경로**를 공유해 신뢰도가 올라간다.
 
 ---
 
@@ -77,6 +77,6 @@ async def retrieve(self, query: str) -> list[dict]:
 
 ## 6. CI 통합 (로드맵)
 
-1. **지금:** `evaluate_crisis.py`를 PR CI에 추가해 안전 회귀를 차단(빠르고 무료).
-2. **다음:** `retrieve()` 추출 → `evaluate_rag.py` 구현 → 골든셋으로 베이스라인 측정.
+1. **완료:** `evaluate_crisis.py`를 PR CI 게이트로 추가(`.github/workflows/safety-eval.yml`)해 안전 회귀를 차단(빠르고 무료).
+2. **완료:** `retrieve()` 추출 + `evaluate_rag.py` 구현. → 인프라(적재된 MongoDB + OpenAI 키)가 갖춰지면 골든셋으로 **베이스라인 측정**.
 3. **이후:** RAG 평가는 비용·시간이 크므로 야간 스케줄 또는 RAG 관련 파일 변경 시에만 실행하고, 점수를 시계열로 기록해 개선폭(예: 하이브리드 검색 도입 전후)을 비교한다.
