@@ -27,20 +27,27 @@ python eval/evaluate_crisis.py
 ## Tier 2 — RAG 품질 평가 (MongoDB + OpenAI 필요)
 
 검색·답변 품질(Context Precision/Recall, Faithfulness, Answer Relevancy)을 측정합니다.
-실제 벡터 검색과 LLM 판정이 필요하므로 다음 전제가 갖춰져야 합니다.
+각 질문을 **프로덕션 경로**(`RAGService.get_streaming_response`)로 그대로 실행해
+검색 청크와 생성 답변을 수집한 뒤 Ragas로 채점합니다.
 
 **전제 조건**
 - MongoDB Atlas에 `documents`가 적재되고 `vector_index`가 생성되어 있을 것
   ([mongodb_atlas_setup_guide.md](../../project/docs/mongodb_atlas_setup_guide.md))
 - `.env`에 `MONGODB_URI`, `OPENAI_API_KEY` 설정
-- 평가 의존성 설치: `pip install ragas datasets`
+- 평가 의존성 설치: `pip install -r eval/requirements-eval.txt`
 
-**데이터셋**: [`golden_set.json`](./golden_set.json) — 카테고리별 질문 + 기대 학술 개념 + 기준 논지
+```bash
+cd backend
+python eval/evaluate_rag.py
+```
 
-> `evaluate_rag.py`는 아직 미구현입니다. 설계와 구현 순서는
-> [rag_evaluation_plan.md](../../project/docs/rag_evaluation_plan.md)에 정의돼 있으며,
-> 깔끔한 연결을 위해 `RAGService`에 검색 전용 메서드(`retrieve(query)`)를 추출하는
-> 소규모 리팩터링을 선행하는 것을 권장합니다.
+- 데이터셋: [`golden_set.json`](./golden_set.json) — 카테고리별 질문 + 기대 학술 개념 + 기준 논지
+- 출력: 지표별 점수와 PRD §6.2 목표 대비 PASS/FAIL (목표 미달 시 종료 코드 1)
+
+> ⚠️ `evaluate_rag.py`는 외부 인프라(적재된 MongoDB + OpenAI 키)가 필요하여 **레포 작성 환경에서는
+> 실행 검증되지 않았습니다.** Ragas는 버전에 민감하므로 `requirements-eval.txt`에 핀된 버전을 사용하고,
+> 다른 버전에서는 임포트/컬럼명 조정이 필요할 수 있습니다. 검색 로직은 프로덕션과 동일한
+> `RAGService.retrieve()`를 공유합니다.
 
 ---
 
