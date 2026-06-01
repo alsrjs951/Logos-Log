@@ -6,6 +6,7 @@ class JournalCreate(BaseModel):
     title: str
     content: str
     emotion: Optional[str] = "calm"
+    created_at: Optional[datetime] = None
 
 class JournalResponse(BaseModel):
     id: str
