@@ -169,6 +169,67 @@ class RAGService:
             
         return False
 
+    async def retrieve(self, query: str, english_query: str = None) -> tuple:
+        """
+        쿼리 확장 → 임베딩 → MongoDB Atlas $vectorSearch → 유사도 필터(≥0.30) → LLM 재랭킹까지
+        수행하고 (재랭킹된 청크 리스트, 원시 검색 결과)를 반환한다.
+
+        스트리밍·생성 부수효과가 없으므로 프로덕션(get_streaming_response)과 평가(evaluate_rag.py)가
+        동일한 검색 경로를 공유한다.
+        """
+        db = get_db()
+        if english_query is None:
+            english_query = await self._expand_query(query)
+
+        query_embedding = self.embeddings.embed_query(english_query)
+
+        # MongoDB Atlas Vector Search Pipeline 실행
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": 50,
+                    "limit": 8
+                }
+            },
+            {
+                "$project": {
+                    "content": 1,
+                    "metadata": 1,
+                    "similarity": {"$meta": "vectorSearchScore"}
+                }
+            }
+        ]
+
+        try:
+            results = list(db.documents.aggregate(pipeline))
+        except Exception as e:
+            print(f"Error during MongoDB Vector Search: {e}. Falling back to empty search.", flush=True)
+            results = []
+
+        # 1차 후보군 파싱 (유사도 점수 0.30 이상인 후보 필터링)
+        candidates = []
+        for res in results:
+            sim = res.get("similarity", 0)
+            if sim >= 0.30:
+                candidates.append({
+                    "id": str(res.get("_id")),
+                    "content": res.get("content"),
+                    "metadata": res.get("metadata") or {},
+                    "similarity": sim
+                })
+
+        # LLM Re-ranking 적용
+        if len(candidates) <= 3:
+            reranked_results = candidates
+            print(f"RAG Optimization: Candidates count is {len(candidates)} (<= 3). Skipping LLM re-ranking.", flush=True)
+        else:
+            reranked_results = await self._rerank_documents(query, candidates)
+
+        return reranked_results, results
+
     async def get_streaming_response(self, query: str, history: list = None, is_journal: bool = False, journal_id: str = None, user_id: str = None) -> AsyncGenerator[str, None]:
         if history is None:
             history = []
@@ -301,54 +362,9 @@ class RAGService:
         yield f"data: {json.dumps({'type': 'status', 'data': 'translating'}, ensure_ascii=False)}\n\n"
         english_query = await self._expand_query(query)
             
-        # 2단계: 질문 임베딩 및 하이브리드 검색
+        # 2단계: 질문 임베딩 및 하이브리드 검색 (검색 단계는 retrieve()로 분리되어 평가와 동일 경로를 공유)
         yield f"data: {json.dumps({'type': 'status', 'data': 'searching'}, ensure_ascii=False)}\n\n"
-        query_embedding = self.embeddings.embed_query(english_query)
-        
-        # MongoDB Atlas Vector Search Pipeline 실행
-        pipeline = [
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",
-                    "path": "embedding",
-                    "queryVector": query_embedding,
-                    "numCandidates": 50,
-                    "limit": 8
-                }
-            },
-            {
-                "$project": {
-                    "content": 1,
-                    "metadata": 1,
-                    "similarity": {"$meta": "vectorSearchScore"}
-                }
-            }
-        ]
-        
-        try:
-            results = list(db.documents.aggregate(pipeline))
-        except Exception as e:
-            print(f"Error during MongoDB Vector Search: {e}. Falling back to empty search.", flush=True)
-            results = []
-            
-        # 1차 후보군 파싱 (유사도 점수 0.30 이상인 후보 필터링)
-        candidates = []
-        for res in results:
-            sim = res.get("similarity", 0)
-            if sim >= 0.30:
-                candidates.append({
-                    "id": str(res.get("_id")),
-                    "content": res.get("content"),
-                    "metadata": res.get("metadata") or {},
-                    "similarity": sim
-                })
-
-        # LLM Re-ranking 적용
-        if len(candidates) <= 3:
-            reranked_results = candidates
-            print(f"RAG Optimization: Candidates count is {len(candidates)} (<= 3). Skipping LLM re-ranking.", flush=True)
-        else:
-            reranked_results = await self._rerank_documents(query, candidates)
+        reranked_results, results = await self.retrieve(query, english_query=english_query)
 
         # 최종 선별된 문서들에 대해 병렬 한국어 번역 및 요약 수행
         import asyncio
