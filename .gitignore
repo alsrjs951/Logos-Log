@@ -27,6 +27,8 @@ MANIFEST
 
 # Data files
 data/raw/*.pdf
+data/raw/*.csv
+data/raw/*.json
 data/processed/*.json
 data/embeddings/*.json
 !data/raw/.gitkeep
