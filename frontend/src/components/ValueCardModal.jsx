@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldAlert, Check, X, Loader2 } from 'lucide-react';
 
-const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => {
+const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [keyword, setKeyword] = useState('');
   const [insight, setInsight] = useState('');
@@ -238,6 +239,7 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ history: chatHistory })
         });
@@ -272,6 +274,7 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           keyword: keyword.trim(),
@@ -293,7 +296,7 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
     }
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay">
       <div className="modal-content glass-panel animate-fade-in">
         <div className="modal-header">
@@ -407,7 +410,8 @@ const ValueCardModal = ({ messages, onClose, onNavigateToNetwork, emotion }) => 
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

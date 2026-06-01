@@ -8,10 +8,13 @@ langchain-openai
 python-dotenv
 tiktoken
 reportlab
-supabase
+pymongo
+bcrypt
+pyjwt
 fastapi
 uvicorn
 sse-starlette
 sentence-transformers
 langchain-huggingface
 torch
+email-validator

@@ -62,8 +62,8 @@ body {
 /* App Layout */
 .app-container {
   width: 100%;
-  max-width: 1000px;
-  height: 90vh;
+  max-width: 1300px;
+  height: 92vh;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -138,11 +138,11 @@ body {
 }
 
 .message-bubble {
-  max-width: 75%;
-  padding: 16px 20px;
+  max-width: 78%;
+  padding: 18px 24px;
   border-radius: 20px;
-  line-height: 1.6;
-  font-size: 0.95rem;
+  line-height: 1.75;
+  font-size: 1rem;
   position: relative;
 }
 
@@ -159,48 +159,155 @@ body {
   border-bottom-left-radius: 4px;
 }
 
-/* Markdown styling inside bot bubble */
-.message-bubble p { margin-bottom: 10px; }
+/* User bubble: 좁게 유지 (입력 텍스트는 짧은 편) */
+.message-row.user .message-bubble {
+  max-width: 60%;
+}
+
+/* Bot bubble: 학술 답변이 길므로 최대한 넓게 */
+.message-row.bot .message-bubble {
+  max-width: 90%;
+}
+
+/* ─────────────────────────────────────────
+   Markdown 타이포그래피 — Bot 버블 내부
+───────────────────────────────────────── */
+.message-bubble p {
+  margin-bottom: 16px;
+  line-height: 1.85; /* 줄 간격을 넓혀 독서 피로도 경감 */
+}
 .message-bubble p:last-child { margin-bottom: 0; }
-.message-bubble strong { color: var(--accent-secondary); }
 
-/* Sources Card */
-.sources-container {
+/* 강조 */
+.message-bubble strong {
+  color: #ffffff; /* ChatGPT/Gemini처럼 원색 대신 흰색 굵은 글씨로 통일하여 정돈된 인상 부여 */
+  font-weight: 700;
+}
+.message-bubble em {
+  color: #e2e8f0;
+  font-style: italic;
+}
+
+/* 제목 계층 (상용 LLM 벤치마크 위계) */
+.message-bubble h1,
+.message-bubble h2,
+.message-bubble h3,
+.message-bubble h4 {
+  font-weight: 700;
+  line-height: 1.4;
+  margin-top: 24px;
+  margin-bottom: 10px;
+  color: #ffffff; /* 제목 색상을 깔끔한 흰색으로 통일하여 가독성 강화 */
+}
+.message-bubble h1 { font-size: 1.4rem; }
+.message-bubble h2 {
+  font-size: 1.22rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+  margin-top: 26px;
+}
+.message-bubble h3 { font-size: 1.1rem; margin-top: 20px; }
+.message-bubble h4 { font-size: 1rem; color: #94a3b8; }
+
+/* 목록 (가독성 최적화) */
+.message-bubble ul,
+.message-bubble ol {
+  padding-left: 20px;
+  margin-bottom: 16px;
   display: flex;
-  gap: 10px;
-  margin-top: 15px;
-  overflow-x: auto;
-  padding-bottom: 10px;
+  flex-direction: column;
+  gap: 8px;
+}
+.message-bubble ul { list-style: none; padding-left: 0; }
+.message-bubble ul li {
+  padding-left: 20px;
+  position: relative;
+  line-height: 1.75;
+}
+.message-bubble ul li::before {
+  content: '✦'; /* 신비롭고 서정적인 은하수 분위기의 별 불릿 */
+  position: absolute;
+  left: 0;
+  color: var(--accent-secondary);
+  font-size: 0.72em;
+  top: 2px;
+}
+.message-bubble ol li {
+  line-height: 1.75;
+  padding-left: 4px;
 }
 
-.source-card {
-  flex: 0 0 250px;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid var(--border-glass);
+/* 인용구 */
+.message-bubble blockquote {
+  margin: 18px 0;
+  padding: 14px 20px;
+  border-left: 4px solid var(--accent-primary);
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 0 12px 12px 0;
+  color: #cbd5e1;
+  font-style: normal; /* 장시간 독서 시 이탤릭 대비 정자체가 피로도 낮음 */
+  line-height: 1.8;
+}
+.message-bubble blockquote p { margin-bottom: 0; }
+
+/* 인라인 코드 */
+.message-bubble code {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.85em;
+  color: #a7f3d0;
+}
+
+/* 코드 블록 */
+.message-bubble pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  padding: 12px;
-  font-size: 0.8rem;
-  transition: transform 0.2s, border-color 0.2s;
-  cursor: pointer;
+  padding: 16px 20px;
+  overflow-x: auto;
+  margin: 16px 0;
+  font-size: 0.85rem;
+}
+.message-bubble pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
 }
 
-.source-card:hover {
-  transform: translateY(-2px);
-  border-color: var(--accent-secondary);
+/* 구분선 */
+.message-bubble hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin: 20px 0;
 }
 
-.source-card h4 {
-  color: var(--accent-primary);
-  margin-bottom: 6px;
-  font-weight: 600;
+/* Sources Card - v2 (redesigned with inline styles) */
+.sources-scroll-wrapper {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99,102,241,0.3) transparent;
 }
 
-.source-card p {
-  color: var(--text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.sources-scroll-wrapper::-webkit-scrollbar {
+  height: 4px;
+}
+
+.sources-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(99,102,241,0.3);
+  border-radius: 10px;
+}
+
+.sources-scroll-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.source-card-v2:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
 }
 
 /* Input Area */
@@ -272,7 +379,7 @@ body {
 .typing-indicator {
   display: flex;
   gap: 4px;
-  padding: 8px 0;
+  padding: 4px 0;
 }
 
 .typing-dot {
@@ -296,3 +403,81 @@ body {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1); }
 }
+
+/* Shimmer Animation for Skeleton Loader */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.02) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.02) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* Blinking Chat Typing Cursor */
+.chat-typing-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  background-color: var(--accent-secondary);
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  from, to { background-color: transparent }
+  50% { background-color: var(--accent-secondary) }
+}
+
+/* Inline Citation Text Style (Natural Text-like Citations) */
+.inline-citation-text {
+  cursor: pointer;
+  color: #818cf8 !important;
+  background: transparent !important;
+  padding: 0 2px !important;
+  border-radius: 2px !important;
+  font-size: 0.92em !important;
+  font-weight: 600 !important;
+  margin-left: 2px !important;
+  margin-right: 2px !important;
+  border: none !important;
+  display: inline !important;
+  user-select: none !important;
+  transition: all 0.15s ease-in-out !important;
+}
+
+.inline-citation-text.highlighted {
+  background: rgba(253, 224, 71, 0.35) !important;
+  color: #a7f3d0 !important; /* 형광펜 느낌에서 인디고/에메랄드와 조화롭게 어우러지도록 밝은 에메랄드 톤으로 호버 시 대비 적용 */
+}
+
+/* Source Card Click Highlight (from inline citation badge) */
+.citation-highlight {
+  animation: border-pulse 2s ease-in-out !important;
+}
+
+@keyframes border-pulse {
+  0%, 100% {
+    border-color: rgba(99, 102, 241, 0.3) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+  }
+  30%, 70% {
+    border-color: var(--accent-secondary) !important;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.6) !important;
+    transform: translateY(-5px);
+  }
+}
+
+

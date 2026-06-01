@@ -7,7 +7,7 @@
 }
 
 .sidebar {
-  width: 280px;
+  width: 300px;
   border-right: 1px solid var(--border-glass);
   display: flex;
   flex-direction: column;
@@ -650,6 +650,68 @@
   border-color: var(--accent-primary);
   box-shadow: 0 0 10px rgba(99, 102, 241, 0.1);
 }
+
+/* Sidebar Footer User Info & Logout Button */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 15px;
+  border-top: 1px solid var(--border-glass);
+  background: rgba(10, 11, 26, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-email-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.logout-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.05);
+  color: #f87171;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+}
+
+.journal-item-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.journal-item-wrapper .journal-item {
+  width: 100%;
+}
+
+
+
 
 
 

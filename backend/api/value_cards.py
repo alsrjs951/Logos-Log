@@ -1,37 +1,41 @@
 import os
 import json
-from fastapi import APIRouter, HTTPException
+import datetime
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
-from supabase import create_client, Client
 from models.value_cards import (
     ValueCardCreate, 
     ValueCardResponse, 
     AnalysisExtractRequest, 
     AnalysisExtractResponse
 )
+from api.deps import get_current_user
+from db import get_db
 
 router = APIRouter()
 
-# Supabase Client 초기화
-url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
-key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
-if url and key:
-    if url.endswith("/rest/v1"):
-        url = url[: -len("/rest/v1")]
-    supabase_client: Client = create_client(url, key)
-else:
-    supabase_client = None
-
-def get_db():
-    if supabase_client is None:
-        raise HTTPException(status_code=500, detail="Supabase 환경 변수가 설정되지 않았습니다.")
-    return supabase_client
+def serialize_value_card(doc) -> dict:
+    """
+    MongoDB 문서 객체를 Pydantic 모델에 호환되는 직렬화된 사전 객체로 변환합니다.
+    """
+    if not doc:
+        return {}
+    return {
+        "id": str(doc["_id"]),
+        "keyword": doc.get("keyword"),
+        "insight": doc.get("insight"),
+        "emotion": doc.get("emotion"),
+        "user_id": doc.get("user_id"),
+        "created_at": doc.get("created_at")
+    }
 
 @router.post("/value-cards/extract", response_model=AnalysisExtractResponse)
-async def extract_value_card(request: AnalysisExtractRequest):
+async def extract_value_card(
+    request: AnalysisExtractRequest,
+    current_user: dict = Depends(get_current_user)
+):
     if not request.history:
         raise HTTPException(status_code=400, detail="대화 내역이 비어 있습니다.")
         
@@ -76,7 +80,6 @@ async def extract_value_card(request: AnalysisExtractRequest):
         except json.JSONDecodeError:
             # LLM이 JSON 형식을 맞추지 못했을 경우 백업 문자열 파싱 시도
             if "keyword" in content_str and "insight" in content_str:
-                # 단순 파싱
                 import re
                 kw_match = re.search(r'"keyword"\s*:\s*"([^"]+)"', content_str)
                 is_match = re.search(r'"insight"\s*:\s*"([^"]+)"', content_str)
@@ -90,28 +93,31 @@ async def extract_value_card(request: AnalysisExtractRequest):
         raise HTTPException(status_code=500, detail=f"가치 추출 오류: {str(e)}")
 
 @router.post("/value-cards", response_model=ValueCardResponse)
-def create_value_card(card: ValueCardCreate):
+async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(get_current_user)):
     db = get_db()
+    user_id = current_user["id"]
     try:
         data = {
             "keyword": card.keyword,
             "insight": card.insight,
-            "emotion": card.emotion
+            "emotion": card.emotion,
+            "user_id": user_id,
+            "created_at": datetime.datetime.utcnow().isoformat()
         }
-        response = db.table("value_cards").insert(data).execute()
+        result = db.value_cards.insert_one(data)
+        data["_id"] = result.inserted_id
         
-        if not response.data:
-            raise HTTPException(status_code=500, detail="가치 카드 저장에 실패했습니다. (응답 데이터 없음)")
-            
-        return response.data[0]
+        return serialize_value_card(data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
 
 @router.get("/value-cards", response_model=List[ValueCardResponse])
-def get_value_cards():
+async def get_value_cards(current_user: dict = Depends(get_current_user)):
     db = get_db()
+    user_id = current_user["id"]
     try:
-        response = db.table("value_cards").select("*").order("created_at", desc=True).execute()
-        return response.data or []
+        cursor = db.value_cards.find({"user_id": user_id}).sort("created_at", -1)
+        cards = [serialize_value_card(doc) for doc in cursor]
+        return cards
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")

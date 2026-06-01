@@ -52,10 +52,18 @@ def main():
         with open(file_path, 'r', encoding='utf-8') as f:
             chunked_data = json.load(f)
             
+        # Skip abnormally large files to prevent Postgres OOM crashes on Nano tier
+        if len(chunked_data) >= 300:
+            print(f"\n[{file}] 스킵됨: 청크 수 {len(chunked_data)}개가 너무 커서 데이터베이스 과부하를 방지하기 위해 제외합니다.")
+            uploaded_files.append(file)
+            with open(TRACK_FILE, 'w') as f:
+                json.dump(uploaded_files, f)
+            continue
+            
         print(f"\n[{file}] 파일 업로드 중... ({len(chunked_data)} 청크)")
         
-        # Batch insert into 'documents' table
-        batch_size = 10
+        # Batch insert into 'documents' table - increased to 45 for significantly faster execution
+        batch_size = 45
         for i in tqdm(range(0, len(chunked_data), batch_size)):
             batch = chunked_data[i:i + batch_size]
             insert_data = []
@@ -66,19 +74,33 @@ def main():
                     "embedding": record["embedding"]
                 })
                 
-            # Retry mechanism
+            # Retry mechanism with backoff and smaller batch size on failure
             max_retries = 3
             import time
             for attempt in range(1, max_retries + 1):
                 try:
                     supabase.table("documents").insert(insert_data).execute()
                     total_chunks_uploaded += len(batch)
+                    time.sleep(0.5)  # Rest database between large batches
                     break
                 except Exception as e:
                     print(f"\n배치 업로드 시도 {attempt}/{max_retries} 실패 (index {i}~{i+len(batch)}): {e}")
                     if attempt == max_retries:
-                        raise e
-                    time.sleep(2)
+                        # If final attempt fails, try inserting them one by one as a last resort
+                        print("마지막 수단으로 1건씩 순차 등록을 시도합니다...")
+                        for record in batch:
+                            try:
+                                supabase.table("documents").insert({
+                                    "content": record["text"],
+                                    "metadata": record["metadata"],
+                                    "embedding": record["embedding"]
+                                }).execute()
+                                total_chunks_uploaded += 1
+                                time.sleep(0.5)
+                            except Exception as single_e:
+                                print(f"단건 등록 실패: {single_e}")
+                                raise single_e
+                    time.sleep(attempt * 2)
                 
         uploaded_files.append(file)
         with open(TRACK_FILE, 'w') as f:

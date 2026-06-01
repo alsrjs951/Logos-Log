@@ -10,7 +10,7 @@ const EMOTION_FILTERS = [
   { key: 'tired', label: '피로', emoji: '😴', color: '#f59e0b' } // Amber
 ];
 
-const MeaningNetwork = () => {
+const MeaningNetwork = ({ token }) => {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -59,7 +59,11 @@ const MeaningNetwork = () => {
   useEffect(() => {
     const fetchValueCards = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/value-cards');
+        const response = await fetch('http://localhost:8000/api/value-cards', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           setCards(data);
@@ -83,7 +87,7 @@ const MeaningNetwork = () => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
+  }, [token]);
 
   // 3D 공간 데이터 초기화
   const initialize3DData = (cardsData) => {
