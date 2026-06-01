@@ -1,0 +1,55 @@
+# RAG 평가 하니스 (Evaluation Harness)
+
+Logos-Log의 "인식론적 정직"([vision.md](../../project/docs/vision.md) §4.2)을 사람의 감(感)이 아니라
+**측정 가능한 파이프라인**으로 보장하기 위한 평가 자산입니다. 설계 배경과 지표 정의는
+[rag_evaluation_plan.md](../../project/docs/rag_evaluation_plan.md)를 참고하세요.
+
+평가는 두 단계(tier)로 나뉩니다.
+
+---
+
+## Tier 1 — 위기 감지 평가 (인프라 불필요, 지금 실행 가능)
+
+안전 지표(Crisis Detection Recall ≥ 0.95)를 측정합니다. 무거운 모델·LLM·DB 없이
+`services/safety.py`의 순수 함수만 평가하므로 **CI 게이트**로 바로 쓸 수 있습니다.
+
+```bash
+cd backend
+python eval/evaluate_crisis.py
+```
+
+- 데이터셋: [`crisis_set.json`](./crisis_set.json) (위기 표현 + 위기가 아닌 감정 표현)
+- 출력: Recall / Precision / F1, 미감지(FN)·오탐(FP) 목록
+- Recall이 목표(0.95) 미만이면 **종료 코드 1** → CI 실패 처리 가능
+
+---
+
+## Tier 2 — RAG 품질 평가 (MongoDB + OpenAI 필요)
+
+검색·답변 품질(Context Precision/Recall, Faithfulness, Answer Relevancy)을 측정합니다.
+실제 벡터 검색과 LLM 판정이 필요하므로 다음 전제가 갖춰져야 합니다.
+
+**전제 조건**
+- MongoDB Atlas에 `documents`가 적재되고 `vector_index`가 생성되어 있을 것
+  ([mongodb_atlas_setup_guide.md](../../project/docs/mongodb_atlas_setup_guide.md))
+- `.env`에 `MONGODB_URI`, `OPENAI_API_KEY` 설정
+- 평가 의존성 설치: `pip install ragas datasets`
+
+**데이터셋**: [`golden_set.json`](./golden_set.json) — 카테고리별 질문 + 기대 학술 개념 + 기준 논지
+
+> `evaluate_rag.py`는 아직 미구현입니다. 설계와 구현 순서는
+> [rag_evaluation_plan.md](../../project/docs/rag_evaluation_plan.md)에 정의돼 있으며,
+> 깔끔한 연결을 위해 `RAGService`에 검색 전용 메서드(`retrieve(query)`)를 추출하는
+> 소규모 리팩터링을 선행하는 것을 권장합니다.
+
+---
+
+## 지표 목표 (PRD §6.2)
+
+| 지표 | 목표 | Tier |
+|---|---|---|
+| Crisis Detection Recall | ≥ 0.95 | 1 |
+| Context Precision | ≥ 0.80 | 2 |
+| Context Recall | ≥ 0.75 | 2 |
+| Answer Faithfulness | ≥ 0.90 | 2 |
+| Answer Relevancy | ≥ 0.85 | 2 |

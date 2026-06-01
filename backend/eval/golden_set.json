@@ -1,0 +1,79 @@
+{
+  "description": "RAG 검색·답변 품질 평가용 골든셋(시작본). evaluate_rag.py(추후 구현)가 각 question으로 실제 검색을 돌려 Ragas 지표를 산출한다. expected_context_themes 는 검색된 논문 청크에 등장해야 할 핵심 학술 개념(영문), reference_points 는 답변 충실도·관련성 채점의 기준이 되는 핵심 논지다.",
+  "note": "reference_points 는 전문가 검수가 필요한 시작 초안이다. 카테고리는 데이터 수집 분류(logotherapy/positive_psych/sdt/cbt)를 따른다.",
+  "metric_targets": {
+    "context_precision": 0.80,
+    "context_recall": 0.75,
+    "faithfulness": 0.90,
+    "answer_relevancy": 0.85,
+    "note": "PRD §6.2"
+  },
+  "cases": [
+    {
+      "id": "g01",
+      "category": "logotherapy",
+      "question": "삶이 공허하고 무엇을 위해 사는지 모르겠어요.",
+      "is_journal": false,
+      "expected_context_themes": ["meaning in life", "existential vacuum", "logotherapy", "will to meaning", "Frankl"],
+      "reference_points": [
+        "공허감은 '실존적 공허(existential vacuum)'로 설명될 수 있으며 의미 추구의 좌절과 연관된다.",
+        "의미는 주어지는 것이 아니라 창조적·경험적·태도적 가치를 통해 스스로 발견하는 것이다."
+      ]
+    },
+    {
+      "id": "g02",
+      "category": "sdt",
+      "question": "해야 할 일을 자꾸 미루고 도무지 동기부여가 안 돼요.",
+      "is_journal": false,
+      "expected_context_themes": ["self-determination theory", "intrinsic motivation", "autonomy", "competence", "amotivation"],
+      "reference_points": [
+        "동기는 자율성·유능감·관계성이라는 기본 심리 욕구의 충족 정도에 좌우된다.",
+        "외적 압박보다 자율적 동기가 지속적 실행과 연결된다."
+      ]
+    },
+    {
+      "id": "g03",
+      "category": "positive_psych",
+      "question": "작은 일에도 감사하는 마음을 갖고 싶은데 잘 안 돼요.",
+      "is_journal": false,
+      "expected_context_themes": ["gratitude", "positive psychology", "well-being", "PERMA", "flourishing"],
+      "reference_points": [
+        "감사 실천(gratitude practice)은 주관적 웰빙과 긍정 정서를 높이는 것으로 보고된다.",
+        "감사는 의도적 훈련(예: 감사 일기)을 통해 강화될 수 있다."
+      ]
+    },
+    {
+      "id": "g04",
+      "category": "cbt",
+      "question": "한 번 실수하면 '난 항상 무능해'라는 생각이 들어요.",
+      "is_journal": false,
+      "expected_context_themes": ["cognitive distortion", "overgeneralization", "cognitive restructuring", "automatic thoughts", "CBT"],
+      "reference_points": [
+        "'항상/언제나'식 사고는 과잉일반화(overgeneralization)라는 인지 왜곡에 해당한다.",
+        "인지 재구조화를 통해 자동적 사고를 검토하고 대안적 해석을 찾을 수 있다."
+      ]
+    },
+    {
+      "id": "g05",
+      "category": "logotherapy",
+      "question": "병 때문에 더 이상 예전처럼 일할 수 없게 됐어요. 제 존재가 쓸모없게 느껴집니다.",
+      "is_journal": false,
+      "expected_context_themes": ["attitudinal values", "suffering", "meaning", "logotherapy", "dignity"],
+      "reference_points": [
+        "바꿀 수 없는 시련 앞에서도 '어떤 태도를 취할 것인가'라는 태도적 가치를 통해 의미를 실현할 수 있다.",
+        "인간의 가치는 생산성·기능으로 환원되지 않는다."
+      ]
+    },
+    {
+      "id": "g06",
+      "category": "sdt",
+      "question": "사람들과 잘 어울리지 못하는 것 같아 늘 외로워요.",
+      "is_journal": false,
+      "expected_context_themes": ["relatedness", "belonging", "basic psychological needs", "social connection"],
+      "reference_points": [
+        "관계성(relatedness)은 기본 심리 욕구의 하나로, 소속·연결의 경험이 웰빙에 중요하다.",
+        "관계 욕구의 좌절은 외로움·동기 저하와 연결될 수 있다."
+      ]
+    }
+  ]
+}
