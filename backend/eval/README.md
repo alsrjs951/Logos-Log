@@ -28,13 +28,13 @@ python eval/evaluate_crisis.py
 
 검색·답변 품질(Context Precision/Recall, Faithfulness, Answer Relevancy)을 측정합니다.
 각 질문을 **프로덕션 경로**(`RAGService.get_streaming_response`)로 그대로 실행해
-검색 청크와 생성 답변을 수집한 뒤 Ragas로 채점합니다.
+검색 청크와 생성 답변을 수집한 뒤 **LLM-judge**(gpt-4o-mini)로 채점합니다.
 
 **전제 조건**
 - MongoDB Atlas에 `documents`가 적재되고 `vector_index`가 생성되어 있을 것
   ([mongodb_atlas_setup_guide.md](../../project/docs/mongodb_atlas_setup_guide.md))
 - `.env`에 `MONGODB_URI`, `OPENAI_API_KEY` 설정
-- 평가 의존성 설치: `pip install -r eval/requirements-eval.txt`
+- 별도 평가 의존성 불필요 — 메인 `requirements.txt`만으로 동작
 
 ```bash
 cd backend
@@ -42,12 +42,27 @@ python eval/evaluate_rag.py
 ```
 
 - 데이터셋: [`golden_set.json`](./golden_set.json) — 카테고리별 질문 + 기대 학술 개념 + 기준 논지
-- 출력: 지표별 점수와 PRD §6.2 목표 대비 PASS/FAIL (목표 미달 시 종료 코드 1)
+- 출력: 지표별 평균과 PRD §6.2 목표 대비 PASS/FAIL (미달 시 종료 코드 1), `eval/runs/`에 JSON 기록(gitignore)
 
-> ⚠️ `evaluate_rag.py`는 외부 인프라(적재된 MongoDB + OpenAI 키)가 필요하여 **레포 작성 환경에서는
-> 실행 검증되지 않았습니다.** Ragas는 버전에 민감하므로 `requirements-eval.txt`에 핀된 버전을 사용하고,
-> 다른 버전에서는 임포트/컬럼명 조정이 필요할 수 있습니다. 검색 로직은 프로덕션과 동일한
-> `RAGService.retrieve()`를 공유합니다.
+> ℹ️ 초기엔 Ragas를 쓰려 했으나, 설치된 langchain 1.x 스택과 Ragas의 `langchain_community` 의존성이
+> 버전 비호환이라(모듈 경로 변경) 동일 지표 정의를 **langchain-openai 기반 LLM-judge**로 직접 구현했습니다.
+> 검색 로직은 프로덕션과 동일한 `RAGService.retrieve()`를 공유합니다.
+
+### 베이스라인 (2026-06-02 · 골든셋 6케이스)
+
+| 지표 | 점수 | 목표 |
+|---|---|---|
+| Answer Relevancy | **0.90** | ≥ 0.85 ✅ |
+| Faithfulness | **0.83** | ≥ 0.90 ❌ |
+| Context Precision | **0.73** | ≥ 0.80 ❌ |
+| Context Recall | **0.58** | ≥ 0.75 ❌ |
+
+가장 약한 지점은 **검색(retrieval)** — 특히 `g02`(미루기/동기부여)에서 검색 청크가 주제와 어긋나
+precision/recall 0.00을 기록해 평균을 크게 끌어내립니다. → Horizon 2 하이브리드 검색의 우선 개선 타깃.
+답변 관련성은 양호하나(0.90), 충실도 0.83은 일부 답변(`g05`=0.60)이 검색 근거를 벗어남을 시사합니다.
+
+> ⚠️ LLM-judge 점수는 단일 판정자(gpt-4o-mini, temp 0) 기반의 **추정치**로 노이즈가 있으며,
+> 6케이스 소표본이라 방향성 지표로 해석해야 합니다. 골든셋을 50+로 키우면 신뢰도가 올라갑니다.
 
 ---
 

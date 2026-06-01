@@ -50,3 +50,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# RAG 평가 실행 산출물
+backend/eval/runs/
