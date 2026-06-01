@@ -7,22 +7,10 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from typing import AsyncGenerator
 from models.chat import ChatSource
+from services.safety import detect_crisis
 from db import get_db
 
 class RAGService:
-    # 자해/자살 위기 신호 키워드 (공백 제거 후 매칭). 안전을 위해 재현율(Recall)을 우선한다.
-    CRISIS_KEYWORDS = [
-        "자살", "자해",
-        "죽고싶", "죽어버리", "죽어야겠", "죽는게나아", "죽는편이",
-        "목숨을끊", "목숨끊", "목숨을버리",
-        "생을마감", "생을포기", "삶을포기", "삶을마감",
-        "세상을떠나", "세상에서사라지", "세상에서없어지",
-        "사라지고싶", "없어지고싶", "사라져버리고싶",
-        "살고싶지않", "살기싫", "살아갈이유가없", "살이유가없", "살아갈힘이없", "살아갈자신이없",
-        "다끝내고싶", "끝내버리고싶", "다끝내버리",
-        "뛰어내리", "목을매", "목매달", "손목을긋", "손목긋", "약을먹고죽", "수면제를먹고",
-    ]
-
     def __init__(self):
         # OpenAI LLM 및 임베딩 로드
         import torch
@@ -145,18 +133,6 @@ class RAGService:
             except Exception:
                 return {"content_ko": text, "summary_ko": text[:80] + "..."}
 
-    def detect_crisis(self, text: str) -> bool:
-        """
-        사용자 입력에서 자해/자살 등 위기 신호를 감지한다.
-        공백을 제거해 '죽 고 싶다'처럼 띄어쓰기로 회피하는 표현까지 포착하며,
-        안전을 위해 정밀도(Precision)보다 재현율(Recall)을 우선하는 키워드 필터다.
-        """
-        import re
-        if not text:
-            return False
-        normalized = re.sub(r"\s+", "", text)
-        return any(kw in normalized for kw in self.CRISIS_KEYWORDS)
-
     def is_casual_query(self, query: str, is_journal: bool) -> bool:
         if is_journal:
             return False
@@ -200,7 +176,7 @@ class RAGService:
         db = get_db()
 
         # 0단계: 위기 신호(자해/자살) 우선 감지 — RAG/소크라테스식 질문보다 먼저 처리한다.
-        if self.detect_crisis(query):
+        if detect_crisis(query):
             yield f"data: {json.dumps({'type': 'status', 'data': 'generating'}, ensure_ascii=False)}\n\n"
             # 프론트엔드가 검증된 전문 상담 핫라인 배너를 노출하도록 신호를 보낸다.
             yield f"data: {json.dumps({'type': 'crisis'}, ensure_ascii=False)}\n\n"
