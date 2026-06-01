@@ -13,6 +13,22 @@
 
 ---
 
+> ## 🛠️ 구현 현황 노트 (Implementation Note)
+> 본 PRD는 **2026-05-04 엔지니어링 킥오프 시점의 계획안**입니다. 이후 실제 구현 과정에서 기술 스택이 아래와 같이 변경되었습니다. 현재 코드 기준의 사실은 이 표를 따릅니다.
+>
+> | 항목 | PRD 계획 | 실제 구현 |
+> |---|---|---|
+> | Vector DB | Supabase pgvector | **MongoDB Atlas Vector Search** (`$vectorSearch`) |
+> | 사용자 인증 (M1) | Supabase Auth (소셜 로그인) | **자체 JWT + bcrypt** (이메일/비밀번호) |
+> | 프론트엔드 | Next.js (App Router) + Tailwind | **React 19 + Vite** (plain CSS, lucide-react) |
+> | 임베딩 모델 (M3) | `text-embedding-3-large` | **`BAAI/bge-m3`** (로컬, 1024차원) |
+> | LLM | GPT-4o / Claude | **GPT-4o-mini** (응답), GPT-3.5 Turbo (가치 카드 추출) |
+> | 위기 감지 | (계획) | **구현됨** — 키워드 기반 감지 + 상담 핫라인(1393) 배너 + 안전 응답 |
+>
+> **아직 미구현(향후 과제):** 일기 본문 AES-256 암호화(M10), PII 마스킹, 하이브리드 검색(S2)/RRF, Ragas 평가 대시보드(S1), Row-Level Security.
+
+---
+
 ## 1. Product Overview (제품 개요)
 
 ### 1.1 Elevator Pitch

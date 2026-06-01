@@ -44,13 +44,14 @@
 
 | 영역 | 기술 |
 |------|------|
-| **LLM** | GPT-3.5 Turbo (응답 생성) |
+| **LLM** | GPT-4o-mini (응답 생성·스트리밍), GPT-3.5 Turbo (가치 카드 추출) |
 | **임베딩 모델** | `BAAI/bge-m3` (로컬, 1024차원, 무료) |
 | **RAG Framework** | LangChain + LangChain-HuggingFace |
-| **Vector DB** | Supabase (pgvector, 1024차원) |
+| **Vector DB** | MongoDB Atlas Vector Search (`$vectorSearch`, 1024차원) |
+| **인증** | 자체 JWT + bcrypt (PyJWT) |
 | **Backend** | FastAPI (Python) |
-| **Frontend** | Next.js (App Router), Tailwind CSS, Framer Motion |
-| **Deployment** | Vercel (FE), Render/Railway (BE) |
+| **Frontend** | React 19 + Vite, lucide-react, react-markdown |
+| **Deployment** | Vercel (FE), Render/Railway · Docker (BE) |
 | **로그 수집** | Fluentd |
 | **로그 저장** | Elasticsearch 8.11.0 |
 | **시각화** | Kibana, Grafana |
@@ -98,8 +99,8 @@
 
 - **1주차:** 요구사항 정의서 작성 및 시스템 아키텍처 설계 (FE/BE/AI 분리)
 - **2주차:** 긍정 심리학, 의미 치료 관련 논문(PDF 등) 데이터셋 수집 및 전처리 계획 수립
-- **3주차:** 텍스트 청킹(Chunking) 전략 수립 및 임베딩 모델(OpenAI text-embedding-3 등) 테스트
-- **4주차:** Vector DB(Supabase) 구축 및 베이스라인 RAG 검색 모듈(Retriever) 구현
+- **3주차:** 텍스트 청킹(Chunking) 전략 수립 및 임베딩 모델(`BAAI/bge-m3` 등) 테스트·선정
+- **4주차:** Vector DB(MongoDB Atlas Vector Search) 구축 및 베이스라인 RAG 검색 모듈(Retriever) 구현
 
 ### Phase 2: 코어 AI 엔진 및 백엔드 개발 (5~8주차)
 
@@ -110,7 +111,7 @@
 
 ### Phase 3: 프론트엔드 연동 및 MVP 완성 (9~12주차)
 
-- **9주차:** Next.js 기반 UI 레이아웃 및 컴포넌트 설계
+- **9주차:** React + Vite 기반 UI 레이아웃 및 컴포넌트 설계
 - **10주차:** FE-BE API 연동 (일기 작성 및 실시간 채팅 인터페이스 연동)
 - **11주차:** 의미 네트워크(아하 모먼트 시각화) 컴포넌트 및 대시보드 구현
 - **12주차:** MVP 버전 배포 및 내부 테스트 (핵심 기능 정상 작동 여부 검증)
@@ -128,26 +129,47 @@
 
 ### 사전 요구 사항
 
-- Docker 24.0+
-- Docker Compose 2.20+
+- Python 3.11+
 - Node.js 20.0+
+- MongoDB Atlas 클러스터 (Vector Search 인덱스 `vector_index`, 1024차원)
+- OpenAI API Key
 
-### 실행
+### 환경변수 (`.env`)
+
+프로젝트 루트(또는 `backend/`)에 `.env` 파일을 생성합니다.
 
 ```bash
-git clone https://github.com/alsrjs951/Logos-Log.git
-cd Logos-Log
-cp .env.example .env   # 환경변수 설정
-docker compose up -d
+MONGODB_URI=mongodb+srv://...                  # MongoDB Atlas 연결 문자열
+OPENAI_API_KEY=sk-...                           # LLM 응답 생성
+JWT_SECRET=<충분히 긴 무작위 문자열>            # 필수 — 미설정 시 백엔드 부팅 거부
+SEMANTIC_SCHOLAR_API_KEY=...                    # (선택) 논문 수집 스크립트용
 ```
 
-| 서비스 | URL |
-|--------|-----|
-| Kibana | http://localhost:5601 |
-| Elasticsearch | http://localhost:9200 |
-| Grafana | http://localhost:3000 |
+### 백엔드 (FastAPI · 포트 8000)
 
-자세한 내용은 **[Wiki: Getting Started](https://github.com/alsrjs951/Logos-Log/wiki/Getting-Started)** 를 참고하세요.
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload     # http://localhost:8000  (docs: /docs)
+```
+
+> 최초 실행 시 임베딩 모델 `BAAI/bge-m3`를 내려받습니다(Apple Silicon은 MPS 가속).
+
+### 프론트엔드 (React + Vite · 포트 5173)
+
+```bash
+cd frontend
+npm install
+npm run dev                   # http://localhost:5173
+```
+
+### (선택) 로깅 인프라
+
+`docker-compose-es.yml`은 로그 분석용 Elasticsearch 단일 노드만 띄웁니다(앱 자체는 위 uvicorn/Vite로 구동).
+
+```bash
+docker compose -f docker-compose-es.yml up -d   # Elasticsearch → http://localhost:9200
+```
 
 ---
 
@@ -158,20 +180,23 @@ Logos-Log/
 ├── .github/
 │   ├── workflows/          # GitHub Actions (DORA 메트릭, 배포)
 │   └── ISSUE_TEMPLATE/     # 이슈 템플릿 (Bug / Feature)
-├── backend/
-│   ├── scripts/
-│   │   ├── collect_semantic_scholar_pdfs.py  # Semantic Scholar API로 논문 수집
-│   │   ├── preprocess.py                     # PDF 텍스트 추출 및 정규화
-│   │   ├── chunk_and_embed.py                # 청킹 + BAAI/bge-m3 로컬 임베딩
-│   │   ├── upload_to_supabase.py             # Supabase Vector DB 업로드
-│   │   └── test_retriever.py                 # RAG 검색기 테스트
-│   └── services/
-│       └── rag_service.py                    # LangChain RAG 서비스 (FastAPI 연동)
+├── backend/                # FastAPI 백엔드
+│   ├── main.py             # 앱 진입점 (CORS, 라우터 등록)
+│   ├── db.py               # MongoDB 연결
+│   ├── api/                # 라우터: auth · chat · journals · value_cards
+│   ├── services/           # rag_service.py (LangChain RAG 파이프라인)
+│   ├── models/             # Pydantic 스키마
+│   └── scripts/
+│       ├── collect_semantic_scholar_pdfs.py  # Semantic Scholar API로 논문 수집
+│       ├── preprocess.py                     # PDF 텍스트 추출 및 정규화
+│       ├── chunk_and_embed.py                # 청킹 + BAAI/bge-m3 로컬 임베딩
+│       ├── upload_to_mongodb.py              # MongoDB Atlas Vector Search 업로드
+│       └── test_retriever.py                 # RAG 검색기 테스트
 ├── data/
 │   ├── raw/                # 수집된 PDF 원본 (gitignore)
 │   ├── processed/          # 전처리된 JSON 텍스트 (gitignore)
 │   └── embeddings/         # 임베딩 벡터 JSON (gitignore)
-├── frontend/               # Next.js 프론트엔드
+├── frontend/               # React + Vite 프론트엔드
 ├── assignments/            # 주차별 과제 결과물
 ├── dashboard/              # DORA 메트릭 정적 대시보드
 ├── scripts/                # Kibana 대시보드 임포트 스크립트
@@ -185,12 +210,12 @@ Logos-Log/
 
 ## 데이터 파이프라인
 
-500개의 오픈 액세스 심리학 논문을 수집하여 Supabase Vector DB에 인덱싱하는 파이프라인입니다.
+500개의 오픈 액세스 심리학 논문을 수집하여 MongoDB Atlas Vector Search에 인덱싱하는 파이프라인입니다.
 
 ```
 [Semantic Scholar API] → [PDF 수집] → [텍스트 추출] → [청킹]
                                                               ↓
-[Supabase pgvector DB] ← [업로드] ← [BAAI/bge-m3 임베딩 (로컬)]
+[MongoDB Atlas Vector Search] ← [업로드] ← [BAAI/bge-m3 임베딩 (로컬)]
 ```
 
 | 단계 | 스크립트 | 결과 |
@@ -198,7 +223,7 @@ Logos-Log/
 | 논문 수집 | `collect_semantic_scholar_pdfs.py` | 498개 PDF |
 | 텍스트 전처리 | `preprocess.py` | 498개 JSON |
 | 청킹 + 임베딩 | `chunk_and_embed.py` | 25,289개 벡터 청크 |
-| DB 업로드 | `upload_to_supabase.py` | Supabase에 저장 완료 |
+| DB 업로드 | `upload_to_mongodb.py` | MongoDB Atlas에 저장 완료 |
 
 **수집 카테고리**: Logotherapy (150) · Positive Psychology (150) · SDT (100) · CBT (98)
 
