@@ -1,13 +1,13 @@
 {
-  "generatedAt": "2026-06-01T14:12:55.725Z",
+  "generatedAt": "2026-06-01T14:59:19.690Z",
   "period": {
-    "since": "2026-05-25T14:12:53.891Z",
-    "until": "2026-06-01T14:12:55.725Z"
+    "since": "2026-05-25T14:59:17.849Z",
+    "until": "2026-06-01T14:59:19.690Z"
   },
   "doraMetrics": {
     "leadTimeForChanges": {
-      "hours": "1.04",
-      "prCount": 7
+      "hours": "1.01",
+      "prCount": 8
     },
     "deploymentFrequency": {
       "weeklyDeployments": 0
