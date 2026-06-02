@@ -53,3 +53,4 @@ Thumbs.db
 
 # RAG 평가 실행 산출물
 backend/eval/runs/
+backend/eval/qrels/

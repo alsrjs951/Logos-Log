@@ -66,6 +66,52 @@ precision/recall 0.00을 기록해 평균을 크게 끌어내립니다. → Hori
 
 ---
 
+## Tier 3 — 검색 정답지(qrels) 반자동 구축 (로컬 LLM 2-채점관)
+
+LLM-judge 추정치를 넘어, 질문마다 **"정답 논문"을 라벨링한 정답지(qrels)**를 만들면 검색 점수를
+AI 눈대중 없이 정확·재현 가능하게 잴 수 있습니다. 사람 노동을 최소화하기 위해, **로컬 LLM 채점관
+2명**이 후보를 라벨링하고 **둘이 갈리는 것만 사람이** 봅니다.
+
+**연산 분산 (맥 + 윈도우/Tailscale)**
+- 맥북(오케스트레이션): MongoDB 풀링 + bge-m3 임베딩(가벼움)
+- 윈도우 데스크톱(RTX 4070, Tailscale): Ollama 로 2-채점관 LLM 추론(무거움)
+
+**윈도우 측 준비**
+```powershell
+# Ollama 설치 후 — 모델 받기 (4비트, 12GB VRAM 적합)
+ollama pull qwen2.5:14b-instruct-q4_K_M   # 채점관 A (다국어 추론 강함)
+ollama pull gemma2:9b-instruct-q4_K_M      # 채점관 B (계열이 달라 오류 비상관)
+# Tailscale 너머에서 접근 가능하도록 0.0.0.0 바인딩
+setx OLLAMA_HOST "0.0.0.0:11434"           # 재시작 후 ollama serve
+```
+
+**맥 측 실행**
+```bash
+cd backend
+export OLLAMA_BASE_URL="http://<windows-tailscale-ip-or-name>:11434"
+python eval/label_qrels.py --check     # 연결/모델 확인
+python eval/label_qrels.py --limit 3   # 시범(앞 3문항)
+python eval/label_qrels.py             # 전체(30문항)
+```
+
+**워크플로**
+1. 각 질문 → 영어 확장 → 후보 풀링(벡터 ∪ 키워드, 질문당 ~30개)
+2. 채점관 A 전체 → 채점관 B 전체 (GPU 1장이라 모델별 2-패스로 스왑 최소화)
+3. 두 채점관의 관련 여부(이진)가 **일치 → 자동 확정**, **불일치 → 사람 큐**
+4. 무작위 40쌍 `calibration_sample.json` 의 `human_grade` 를 채운 뒤:
+   ```bash
+   python eval/calibration_report.py   # 채점관 신뢰도(일치율·kappa) 검증
+   ```
+
+**출력** (`backend/eval/qrels/`, gitignore — 사람 검수 후 최종본만 커밋 권장)
+- `qrels_draft.json` 자동 확정 정답지 · `disagreements.json` 사람 검토 큐
+- `calibration_sample.json` 사람 검증 표본 · `judgments_full.json` 전체 판정 기록
+
+> 키워드 검색은 `documents.content` 텍스트 인덱스(`content_text`)를 쓰며 `pooling.ensure_text_index()`가
+> 최초 1회 자동 생성합니다. 이 인덱스는 추후 **하이브리드 검색(Horizon 2)**에도 재사용됩니다.
+
+---
+
 ## 지표 목표 (PRD §6.2)
 
 | 지표 | 목표 | Tier |
