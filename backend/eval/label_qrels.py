@@ -142,6 +142,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="Ollama 연결/모델만 확인")
     ap.add_argument("--limit", type=int, default=None, help="앞 N개 질문만")
+    ap.add_argument("--resume", action="store_true", help="Judge A 체크포인트에서 이어서(Judge B만)")
     args = ap.parse_args()
 
     if args.check:
@@ -158,15 +159,27 @@ def main():
     if args.limit:
         cases = cases[:args.limit]
 
-    from services.rag_service import RAGService
-    from db import get_db
-    rag, db = RAGService(), get_db()
+    os.makedirs(OUT_DIR, exist_ok=True)
+    ckpt = os.path.join(OUT_DIR, "_checkpoint_after_a.json")
 
-    print(f"\n=== 후보 풀링 — {len(cases)}문항 ===", flush=True)
-    pairs, pools = build_pairs(rag, db, cases)
-    print(f"\n총 {len(pairs)}쌍 채점 예정 (채점관 2명 × {len(pairs)} = {len(pairs)*2}회)")
+    if args.resume and os.path.exists(ckpt):
+        with open(ckpt, encoding="utf-8") as f:
+            saved = json.load(f)
+        pairs, pools = saved["pairs"], saved["pools"]
+        print(f"체크포인트 로드: {len(pairs)}쌍 (Judge A 완료) → Judge B 만 실행", flush=True)
+    else:
+        from services.rag_service import RAGService
+        from db import get_db
+        rag, db = RAGService(), get_db()
 
-    judge_pass(pairs, JUDGE_A, "grade_a")
+        print(f"\n=== 후보 풀링 — {len(cases)}문항 ===", flush=True)
+        pairs, pools = build_pairs(rag, db, cases)
+        print(f"\n총 {len(pairs)}쌍 채점 예정 (채점관 2명 × {len(pairs)} = {len(pairs)*2}회)")
+
+        judge_pass(pairs, JUDGE_A, "grade_a")
+        _save(ckpt, {"pairs": pairs, "pools": pools})  # Judge A 결과 체크포인트(중단 대비)
+        print(f"  체크포인트 저장: {os.path.relpath(ckpt, BACKEND_DIR)} (중단 시 --resume 로 이어서)", flush=True)
+
     judge_pass(pairs, JUDGE_B, "grade_b")
 
     # 합의/불일치 집계 (이진 관련성 = grade >= 1)
