@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-06-02T05:03:12.013Z",
+  "period": {
+    "since": "2026-05-26T05:03:10.419Z",
+    "until": "2026-06-02T05:03:12.013Z"
+  },
+  "doraMetrics": {
+    "leadTimeForChanges": {
+      "hours": "0.76",
+      "prCount": 11
+    },
+    "deploymentFrequency": {
+      "weeklyDeployments": 0
+    },
+    "meanTimeToRecovery": {
+      "hours": 0,
+      "incidentCount": 0
+    },
+    "changeFailureRate": {
+      "percentage": "10.00",
+      "totalRuns": 50,
+      "failedRuns": 5
+    }
+  }
+}
