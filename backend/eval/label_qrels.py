@@ -63,7 +63,7 @@ JUDGE_SYSTEM = (
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 def ollama_judge(model: str, query: str, chunk: str, timeout: int = 180):
