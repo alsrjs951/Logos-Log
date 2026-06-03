@@ -21,10 +21,10 @@
 | 지표 | 정의 | 목표 | 도구 |
 |---|---|---|---|
 | **Crisis Detection Recall** | 위기 표현을 놓치지 않는 비율(안전) | ≥ 0.95 | 자체(`evaluate_crisis.py`) |
-| **Context Precision** | 검색 청크 중 실제 관련 비율 | ≥ 0.80 | Ragas |
-| **Context Recall** | 정답에 필요한 컨텍스트 회수율 | ≥ 0.75 | Ragas |
-| **Faithfulness** | 답변이 검색 컨텍스트에 충실한 정도(환각 역지표) | ≥ 0.90 | Ragas |
-| **Answer Relevancy** | 답변이 질문에 적절한 정도 | ≥ 0.85 | Ragas |
+| **Context Precision** | 검색 청크 중 실제 관련 비율 | ≥ 0.80 | LLM-judge |
+| **Context Recall** | 정답에 필요한 컨텍스트 회수율 | ≥ 0.75 | LLM-judge |
+| **Faithfulness** | 답변이 검색 컨텍스트에 충실한 정도(환각 역지표) | ≥ 0.90 | LLM-judge |
+| **Answer Relevancy** | 답변이 질문에 적절한 정도 | ≥ 0.85 | LLM-judge |
 
 ---
 
@@ -38,16 +38,29 @@
 - 실행기: `backend/eval/evaluate_crisis.py` — Recall/Precision/F1 산출, Recall < 0.95 시 종료 코드 1
 - 특징: 무거운 의존성이 없어 **모든 PR CI에서 게이트로 상시 실행 가능**
 
-### Tier 2 — RAG 검색·답변 품질 (구현됨 · 실행엔 인프라 필요)
-- 실행기: `backend/eval/evaluate_rag.py` (Ragas), 의존성: `backend/eval/requirements-eval.txt`
+### Tier 2 — RAG 검색·답변 품질 (구현 + 베이스라인 측정 완료)
+- 실행기: `backend/eval/evaluate_rag.py` — 별도 의존성 불필요(메인 `requirements.txt`만)
 - 데이터셋: `backend/eval/golden_set.json` (카테고리별 질문 + 기대 학술 개념 + 기준 논지)
 - 전제: MongoDB `documents` 적재 + `vector_index`, `OPENAI_API_KEY`
 - 흐름:
   1. 각 `question`을 **프로덕션 경로**(`get_streaming_response`)로 실행 → 검색 청크(`contexts`)와 생성 답변(`answer`) 수집
-  2. `question / answer / contexts / ground_truth` 를 Ragas 입력 포맷으로 구성
-  3. `context_precision, context_recall, faithfulness, answer_relevancy` 산출
+  2. `question / answer / contexts / ground_truth` 를 LLM-judge(gpt-4o-mini)로 채점
+  3. `context_precision, context_recall, faithfulness, answer_relevancy` 산출 → `eval/runs/`에 기록
   4. PRD §6.2 목표와 비교, 미달 시 종료 코드 1
-- ⚠️ 외부 인프라 의존으로 작성 환경에서 실행 검증되지 않음. Ragas는 버전에 민감하므로 핀 버전 기준으로 작성됨.
+- ℹ️ 초기 계획은 Ragas였으나 설치된 langchain 1.x 스택과 버전 비호환(모듈 경로 변경)이라, 동일 지표 정의를 langchain-openai 기반 LLM-judge로 직접 구현했다.
+
+#### 베이스라인 (2026-06-02 · 골든셋 6케이스, 실측)
+
+| 지표 | 점수 | 목표 | |
+|---|---|---|---|
+| Answer Relevancy | 0.90 | ≥ 0.85 | ✅ |
+| Faithfulness | 0.83 | ≥ 0.90 | ❌ |
+| Context Precision | 0.73 | ≥ 0.80 | ❌ |
+| Context Recall | 0.58 | ≥ 0.75 | ❌ |
+
+- **가장 약한 축은 검색(retrieval)**: `g02`(미루기/동기부여)가 주제와 어긋난 청크를 받아 precision/recall 0.00 → 평균을 크게 끌어내림. Horizon 2 하이브리드 검색(BM25+Vector)의 1순위 타깃.
+- **충실도 0.83**(목표 미달): 일부 답변(`g05`=0.60)이 검색 근거를 벗어남 — 시스템 프롬프트의 "근거 밖 서술 금지" 강화 여지.
+- 한계: 단일 LLM-judge·소표본(6) 추정치. 골든셋 50+ 확대 시 신뢰도 상승.
 
 ---
 
@@ -73,10 +86,54 @@ async def retrieve(self, query, english_query=None) -> tuple:
 - 위기 골든셋은 실제 오탐/미감지 사례를 지속 추가해 안전 회귀를 막는다.
 - 알려진 한계: 키워드 기반 위기 감지는 `자살골` 같은 합성어에서 오탐 가능(재현율 우선 설계). 정밀도가 필요하면 LLM 분류기 보강을 검토한다.
 
+### 5.1 검색 정답지(qrels) 반자동 구축 — 사람 최소화 × 정확도 최대화
+
+LLM-judge 추정치를 넘어 "질문별 정답 논문"을 라벨링하면 검색 점수를 정확·재현 가능하게 잴 수 있다.
+9,562개를 다 보지 않고, **사람 손은 두 군데만** 닿게 한다.
+
+1. **Pooling**: 서로 다른 검색기(벡터 ∪ 키워드)의 상위 결과를 합쳐 질문당 ~30 후보로 축소(TREC pooling). 정답은 거의 이 합집합에 포함된다.
+2. **로컬 LLM 2-채점관**: RTX 4070(12GB)에서 Ollama 로 Qwen2.5-14B(A) + Gemma-2-9B(B)를 4비트로 구동. 영어 확장 쿼리로 채점해 다국어 부담을 줄인다. 명확한 0/1/2 기준표 + 이유 서술로 정확도를 높인다.
+3. **합의 자동화**: 두 채점관의 이진 관련성이 일치하면 자동 확정, **불일치만 사람 검토 큐**로(보통 소수).
+4. **캘리브레이션**: 사람이 40쌍만 라벨링 → 채점관과의 일치율·Cohen's kappa 측정(≥0.6이면 신뢰). 이 40쌍이 사실상 유일한 큰 사람 노동이다.
+
+구현: `backend/eval/pooling.py`(맥, MongoDB+임베딩) + `label_qrels.py`(원격 Ollama 오프로드, 윈도우/Tailscale) + `calibration_report.py`. 운영 가이드는 `backend/eval/README.md` Tier 3 참조.
+한 번 만든 qrels로 이후 검색 평가는 LLM 비용 없이 정밀도/재현율·nDCG 를 즉시·정확히 잰다.
+
+캘리브레이션 실측(40쌍): '관련 전체(≥1)'는 base rate ~90%로 변별력이 없고, '직접 관련(==2)'에서 채점관 ↔ 상위 모델(Claude) kappa ≈ 0.49(보통) — 모델 차이가 아니라 grade-2 판단 자체의 본질적 애매성. 따라서 qrels의 **grade==2(두 채점관 합의)** 를 '관련'으로 쓰는 중신뢰 정답지로 채택한다.
+
+### 5.2 검색 전략 비교 결과 — 하이브리드는 효과 없음 (2026-06, 30문항)
+
+정답지(grade==2)에 대해 `backend/eval/evaluate_retrieval.py` 로 측정한 결과:
+
+| 전략 | P@5 | R@10 | nDCG@10 | MRR |
+|---|---|---|---|---|
+| **vector**(현재 프로덕션) | **0.69** | **0.54** | **0.81** | 0.85 |
+| keyword (`$text`) | 0.45 | 0.31 | 0.61 | 0.70 |
+| hybrid (RRF 균등) | 0.61 | 0.47 | 0.76 | 0.85 |
+| hybrid_vw (벡터 가중 RRF) | 0.64 | 0.51 | 0.79 | 0.87 |
+
+- **결론: 벡터 단독이 최고.** 키워드 검색이 벡터보다 크게 약해, RRF로 섞으면 강한 벡터 순위를 희석해 정밀도·재현율이 하락한다. 벡터 가중을 줘도 벡터를 넘지 못하며 MRR만 노이즈 수준(+0.015)으로 앞선다.
+- **결정: PRD S2(하이브리드 검색/RRF) 미채택, 벡터 단독 유지.** 측정으로 회귀를 방지한 사례.
+- 주의: 쿼리 확장(LLM, temp 0.3)이 비결정적이라 실행 간 ~0.05 노이즈가 있으나, '벡터 ≥ 하이브리드(P/R/nDCG)' 결론은 반복 실행에서 일관.
+- 시사점: 검색 자체는 양호(P@5 ~0.69, MRR ~0.85). 다음 개선 레버는 하이브리드가 아니라 답변 충실도 또는 쿼리 확장/청킹 쪽이 유망.
+
+### 5.3 충실도 가드 실험 — 측정상 효과 없음(되돌림) (2026-06)
+
+답변이 검색 근거를 벗어나는 문제(초기 6문항 baseline faithfulness 0.83)를 고치려 시스템 프롬프트에 '근거 충실성 가드'를 추가했다. 6문항 측정에서 0.83→0.88(+0.05)로 개선되어 보였으나, **30문항 A/B**로 엄밀히 재측정한 결과:
+
+| | Faithfulness | Answer Relevancy |
+|---|---|---|
+| BEFORE(가드 없음, 30) | 0.867 | 0.903 |
+| AFTER(가드 있음, 30) | 0.865 | 0.907 |
+
+- **결론: 측정상 차이 없음(−0.002).** 6문항의 +0.05는 **소표본 노이즈**였고, 원래 baseline 0.83 자체도 6문항 저표본 fluctuation(실제 충실도 ~0.865)이었다.
+- **결정: 검증되지 않은 변경은 싣지 않는다 → 가드 되돌림(revert).** '감이 아니라 데이터'라는 원칙의 적용 사례이자, **소표본 평가의 위험**(가짜 성과 착각)을 보여준 교훈.
+- 충실도 ~0.865는 목표 0.90에 약간 못 미치나, 이를 올리려면 프롬프트 미세조정이 아니라 더 강한 개입(예: 생성 후 충실도 자가검증 → fallback, PRD 안전요구)이 필요할 것으로 보이며 측정으로 검증해야 한다.
+
 ---
 
 ## 6. CI 통합 (로드맵)
 
 1. **완료:** `evaluate_crisis.py`를 PR CI 게이트로 추가(`.github/workflows/safety-eval.yml`)해 안전 회귀를 차단(빠르고 무료).
-2. **완료:** `retrieve()` 추출 + `evaluate_rag.py` 구현. → 인프라(적재된 MongoDB + OpenAI 키)가 갖춰지면 골든셋으로 **베이스라인 측정**.
-3. **이후:** RAG 평가는 비용·시간이 크므로 야간 스케줄 또는 RAG 관련 파일 변경 시에만 실행하고, 점수를 시계열로 기록해 개선폭(예: 하이브리드 검색 도입 전후)을 비교한다.
+2. **완료:** `retrieve()` 추출 + `evaluate_rag.py` 구현 + **베이스라인 측정 완료**(위 표). 검색 품질이 최우선 개선 영역으로 확인됨.
+3. **다음:** RAG 평가는 비용·시간이 크므로 야간 스케줄 또는 RAG 관련 파일 변경 시에만 실행하고, 점수를 시계열로 기록해 개선폭(예: 하이브리드 검색 도입 전후)을 비교한다. 골든셋을 50+로 확대한다.

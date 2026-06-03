@@ -1,5 +1,0 @@
-# Tier 2 RAG 품질 평가(evaluate_rag.py) 전용 의존성 — 메인 앱(requirements.txt)과 분리.
-# Ragas API는 버전에 민감하므로 핀한다. 버전 변경 시 evaluate_rag.py의 임포트/컬럼명
-# (예: ground_truth ↔ reference) 조정이 필요할 수 있다.
-ragas==0.1.21
-datasets>=2.14.0
