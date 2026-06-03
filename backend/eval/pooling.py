@@ -72,6 +72,21 @@ def pool(rag, db, english_query: str, keyword_query: str = None,
     return list(merged.values())
 
 
+def rrf_fuse(rankings, k: int = 60, weights=None) -> list:
+    """여러 순위 리스트(각각 id 순서)를 (가중) Reciprocal Rank Fusion으로 결합.
+
+    각 검색기에서 순위 r(0-base)인 문서에 w·1/(k+r+1) 점수를 부여해 합산하고,
+    합산 점수 내림차순 id 리스트를 반환한다. weights 로 검색기별 가중치를 줄 수 있다(기본 균등). (PRD S2의 RRF)
+    """
+    if weights is None:
+        weights = [1.0] * len(rankings)
+    scores = {}
+    for w, ranking in zip(weights, rankings):
+        for rank, _id in enumerate(ranking):
+            scores[_id] = scores.get(_id, 0.0) + w * (1.0 / (k + rank + 1))
+    return [i for i, _ in sorted(scores.items(), key=lambda x: x[1], reverse=True)]
+
+
 def rag_db(rag):
     """RAGService 가 쓰는 동일 DB 핸들."""
     from db import get_db
