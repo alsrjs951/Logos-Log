@@ -22,6 +22,7 @@ import os
 import sys
 import json
 import asyncio
+import argparse
 import datetime
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -181,9 +182,15 @@ def main():
         print("[!] MONGODB_URI / OPENAI_API_KEY 가 필요합니다. (.env 확인)", file=sys.stderr)
         sys.exit(2)
 
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--limit", type=int, default=None, help="앞 N개 문항만 평가")
+    args = ap.parse_args()
+
     with open(GOLDEN_PATH, "r", encoding="utf-8") as f:
         golden = json.load(f)
     cases = golden.get("cases", [])
+    if args.limit:
+        cases = cases[:args.limit]
     targets = golden.get("metric_targets", {})
 
     print("=" * 60)
