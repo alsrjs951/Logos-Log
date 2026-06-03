@@ -41,28 +41,30 @@ def main():
               f"    {os.path.relpath(PATH, EVAL_DIR)} 의 human_grade 를 0/1/2 로 채운 뒤 다시 실행.", file=sys.stderr)
         sys.exit(2)
 
-    def binr(g):
-        return 1 if (g is not None and g >= 1) else 0
-
-    human = [binr(r["human_grade"]) for r in labeled]
-    print("=" * 52)
-    print(f"  캘리브레이션 — 사람 라벨 {len(labeled)}쌍 (이진 관련성)")
-    print("=" * 52)
-    for judge in ("grade_a", "grade_b"):
-        usable = [(binr(r["human_grade"]), binr(r.get(judge)))
-                  for r in labeled if r.get(judge) is not None]
-        if not usable:
-            print(f"  {judge}: 비교 가능한 항목 없음")
-            continue
-        h = [x for x, _ in usable]
-        j = [y for _, y in usable]
-        agree = sum(1 for x, y in zip(h, j) if x == y) / len(usable)
-        k = cohen_kappa(h, j)
-        verdict = "신뢰 가능" if (k is not None and k >= 0.6) else "보강 필요"
-        print(f"  {judge}: 일치율 {agree:.2f} | kappa {k:.2f} → {verdict}  (n={len(usable)})")
-    print("=" * 52)
-    print("  kappa ≥ 0.6 이면 해당 채점관의 자동 라벨을 신뢰할 만하다.")
-    print("  낮으면 더 큰 모델/명확한 기준표로 재측정하라.")
+    print("=" * 60)
+    print(f"  캘리브레이션 — 사람 라벨 {len(labeled)}쌍")
+    print("=" * 60)
+    # 두 임계값으로 본다: ≥1(관련 전체)과 ==2(직접 관련). 코퍼스가 전부 심리학이라
+    # ≥1은 base rate가 높아(거의 다 관련) 변별력이 낮다 → ==2가 의미 있는 기준이다.
+    for thr_name, thr in (("관련 전체 (grade ≥ 1)", 1), ("직접 관련 (grade == 2)", 2)):
+        def binr(g, t=thr):
+            return 1 if (g is not None and g >= t) else 0
+        h = [binr(r["human_grade"]) for r in labeled]
+        base = sum(h) / len(h)
+        print(f"\n  [{thr_name}]  사람 양성률 {base:.0%}")
+        for judge in ("grade_a", "grade_b"):
+            usable = [(binr(r["human_grade"]), binr(r.get(judge)))
+                      for r in labeled if r.get(judge) is not None]
+            if not usable:
+                continue
+            hh = [x for x, _ in usable]
+            jj = [y for _, y in usable]
+            agree = sum(1 for x, y in zip(hh, jj) if x == y) / len(usable)
+            k = cohen_kappa(hh, jj)
+            print(f"    {judge}: 일치율 {agree:.2f} | kappa {k:.2f}")
+    print("\n" + "=" * 60)
+    print("  기준: kappa 0.2~0.4 약함 · 0.4~0.6 보통 · 0.6~0.8 양호 · >0.8 매우좋음")
+    print("  ※ '직접 관련(==2)' kappa 를 주 지표로 보라(≥1은 base rate가 높아 왜곡).")
 
 
 if __name__ == "__main__":
