@@ -5,22 +5,30 @@ import JournalList from './components/JournalList';
 import MeaningNetwork from './components/MeaningNetwork';
 import AuthModal from './components/AuthModal';
 import Dashboard from './components/Dashboard';
+import OnboardingFlow from './components/OnboardingFlow';
 import { BrainCircuit, Plus, MessageSquare, Globe, LogOut, Activity } from 'lucide-react';
 import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('access_token') || null);
   const [userEmail, setUserEmail] = useState(localStorage.getItem('user_email') || null);
-  const [currentMode, setCurrentMode] = useState('dashboard'); // 'dashboard' | 'editor' | 'chat' | 'network'
+  const [currentMode, setCurrentMode] = useState('dashboard');
   const [journals, setJournals] = useState([]);
+  const [isJournalsLoading, setIsJournalsLoading] = useState(Boolean(localStorage.getItem('access_token')));
   const [initialJournalForChat, setInitialJournalForChat] = useState(null);
   const [activeJournalId, setActiveJournalId] = useState(null);
   const [preselectedDate, setPreselectedDate] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // 로그인 성공 콜백
   const handleLoginSuccess = (newToken, email) => {
+    setIsJournalsLoading(true);
     setToken(newToken);
     setUserEmail(email);
+    // 신규 사용자일 때만 온보딩 표시
+    if (localStorage.getItem('onboarding_done') !== 'true') {
+      setShowOnboarding(true);
+    }
   };
 
   // 로그아웃 처리
@@ -31,6 +39,7 @@ function App() {
     setToken(null);
     setUserEmail(null);
     setJournals([]);
+    setIsJournalsLoading(false);
     setCurrentMode('editor');
     setActiveJournalId(null);
     setInitialJournalForChat(null);
@@ -38,8 +47,12 @@ function App() {
 
   // 과거 일기 목록 가져오기
   const fetchJournals = async () => {
-    if (!token) return;
+    if (!token) {
+      setIsJournalsLoading(false);
+      return;
+    }
     try {
+      setIsJournalsLoading(true);
       const response = await fetch('http://localhost:8000/api/journals', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -53,6 +66,8 @@ function App() {
       }
     } catch (error) {
       console.error('Error fetching journals:', error);
+    } finally {
+      setIsJournalsLoading(false);
     }
   };
 
@@ -176,6 +191,13 @@ function App() {
   }
 
   return (
+    <>
+    {showOnboarding && (
+      <OnboardingFlow onComplete={() => {
+        setShowOnboarding(false);
+        setCurrentMode('editor');
+      }} />
+    )}
     <div className="app-container glass-panel">
       <header className="app-header">
         <div className="logo-icon">
@@ -243,6 +265,8 @@ function App() {
           {currentMode === 'dashboard' && (
             <Dashboard 
               token={token} 
+              journals={journals}
+              isJournalsLoading={isJournalsLoading}
               onSelectJournal={handleSelectJournal}
               onNavigateToMode={(mode) => setCurrentMode(mode)}
               onNewJournalWithDate={handleNewJournal}
@@ -270,6 +294,7 @@ function App() {
         </main>
       </div>
     </div>
+    </>
   );
 }
 

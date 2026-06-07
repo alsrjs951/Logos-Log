@@ -16,6 +16,7 @@ const AuthModal = ({ onLoginSuccess }) => {
     setIsLoading(true);
 
     const endpoint = isLoginMode ? 'login' : 'signup';
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
       const response = await fetch(`http://localhost:8000/api/auth/${endpoint}`, {
@@ -23,7 +24,7 @@ const AuthModal = ({ onLoginSuccess }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: normalizedEmail, password })
       });
 
       const data = await response.json();
@@ -32,13 +33,11 @@ const AuthModal = ({ onLoginSuccess }) => {
         throw new Error(data.detail || '인증 요청에 실패했습니다.');
       }
 
-      if (isLoginMode) {
-        // 로그인 성공 시 세션 저장 및 상위 앱에 알림
+      if (data.access_token) {
         localStorage.setItem('access_token', data.access_token);
         localStorage.setItem('user_email', data.user.email);
         onLoginSuccess(data.access_token, data.user.email);
       } else {
-        // 회원가입 성공 시
         setMessage('회원가입이 완료되었습니다! 로그인해 주세요.');
         setIsLoginMode(true);
         setPassword('');
