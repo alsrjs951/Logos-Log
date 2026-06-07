@@ -95,4 +95,5 @@ async def get_weekly_report(current_user: dict = Depends(get_current_user)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"주간 리포트 생성 오류: {str(e)}")
+        print(f"[report] weekly error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="주간 리포트 생성 중 오류가 발생했습니다.")

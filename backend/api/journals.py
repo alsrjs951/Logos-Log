@@ -44,7 +44,8 @@ async def create_journal(journal: JournalCreate, current_user: dict = Depends(ge
         
         return serialize_journal(data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[journals] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/journals", response_model=List[JournalResponse])
 async def get_journals(current_user: dict = Depends(get_current_user)):
@@ -56,7 +57,8 @@ async def get_journals(current_user: dict = Depends(get_current_user)):
         journals = [serialize_journal(doc) for doc in cursor]
         return journals
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[journals] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/journals/summary")
 async def get_journals_summary(current_user: dict = Depends(get_current_user)):
@@ -79,7 +81,8 @@ async def get_journals_summary(current_user: dict = Depends(get_current_user)):
             })
         return summaries
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[journals] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.delete("/journals/{journal_id}")
 async def delete_journal(journal_id: str, current_user: dict = Depends(get_current_user)):
@@ -109,5 +112,6 @@ async def delete_journal(journal_id: str, current_user: dict = Depends(get_curre
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[journals] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
