@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from typing import AsyncGenerator
 from models.chat import ChatSource
 from services.safety import detect_crisis
+from services.encryption import encrypt, decrypt
 from db import get_db
 
 class RAGService:
@@ -273,7 +274,7 @@ class RAGService:
                     db.chat_messages.insert_one({
                         "journal_id": journal_id,
                         "role": "user",
-                        "content": query,
+                        "content": encrypt(query),
                         "sources": [],
                         "user_id": user_id,
                         "created_at": datetime.datetime.utcnow().isoformat()
@@ -281,7 +282,7 @@ class RAGService:
                     db.chat_messages.insert_one({
                         "journal_id": journal_id,
                         "role": "bot",
-                        "content": full_answer,
+                        "content": encrypt(full_answer),
                         "sources": [],
                         "crisis": True,
                         "user_id": user_id,
@@ -336,7 +337,7 @@ class RAGService:
                     user_msg = {
                         "journal_id": journal_id,
                         "role": "user",
-                        "content": query,
+                        "content": encrypt(query),
                         "sources": [],
                         "user_id": user_id,
                         "created_at": datetime.datetime.utcnow().isoformat()
@@ -346,7 +347,7 @@ class RAGService:
                     bot_msg = {
                         "journal_id": journal_id,
                         "role": "bot",
-                        "content": full_answer,
+                        "content": encrypt(full_answer),
                         "sources": sources,
                         "user_id": user_id,
                         "created_at": datetime.datetime.utcnow().isoformat()
@@ -508,7 +509,7 @@ class RAGService:
                 user_msg = {
                     "journal_id": journal_id,
                     "role": "user",
-                    "content": user_content,
+                    "content": encrypt(user_content),
                     "sources": [],
                     "user_id": user_id,
                     "created_at": datetime.datetime.utcnow().isoformat()
@@ -537,7 +538,10 @@ class RAGService:
         db = get_db()
         try:
             cursor = db.chat_messages.find({"journal_id": journal_id}).sort("created_at", 1)
-            return list(cursor)
+            docs = list(cursor)
+            for d in docs:
+                d["content"] = decrypt(d.get("content"))
+            return docs
         except Exception as e:
             print(f"Error fetching chat history from database: {e}", flush=True)
             return []
@@ -609,7 +613,7 @@ class RAGService:
             profile_text = "\n[사용자가 과거 성찰을 통해 깨달아 저장한 핵심 가치 목록]\n"
             for card in cards:
                 keyword = card.get("keyword", "").strip()
-                insight = card.get("insight", "").strip()
+                insight = (decrypt(card.get("insight", "")) or "").strip()
                 if keyword and insight:
                     profile_text += f"- 핵심 가치: **{keyword}** | 인사이트: \"{insight}\"\n"
             profile_text += "\n[행동 지침] 대화 시 사용자의 과거 가치 목록을 은연중에 상기시키거나, 오늘의 고민과 자연스럽게 결합하여 1인칭 반영 및 질문을 전개하십시오. 단, 과거 가치를 부자연스럽게 나열하지 말고 대화의 흐름 속에 자연스럽게 스며들도록 인용하십시오.\n"

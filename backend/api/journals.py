@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List
 from models.journals import JournalCreate, JournalResponse
 from api.deps import get_current_user
+from services.encryption import encrypt, decrypt
 from db import get_db
 
 router = APIRouter()
@@ -16,8 +17,8 @@ def serialize_journal(doc) -> dict:
         return {}
     return {
         "id": str(doc["_id"]),
-        "title": doc.get("title"),
-        "content": doc.get("content"),
+        "title": decrypt(doc.get("title")),
+        "content": decrypt(doc.get("content")),
         "emotion": doc.get("emotion"),
         "user_id": doc.get("user_id"),
         "created_at": doc.get("created_at")
@@ -31,8 +32,8 @@ async def create_journal(journal: JournalCreate, current_user: dict = Depends(ge
         created_at_val = journal.created_at.isoformat() if journal.created_at else datetime.datetime.utcnow().isoformat()
         
         data = {
-            "title": journal.title,
-            "content": journal.content,
+            "title": encrypt(journal.title),
+            "content": encrypt(journal.content),
             "emotion": journal.emotion,
             "user_id": user_id,
             "created_at": created_at_val
@@ -72,7 +73,7 @@ async def get_journals_summary(current_user: dict = Depends(get_current_user)):
         for doc in cursor:
             summaries.append({
                 "id": str(doc["_id"]),
-                "title": doc.get("title"),
+                "title": decrypt(doc.get("title")),
                 "emotion": doc.get("emotion"),
                 "created_at": doc.get("created_at")
             })

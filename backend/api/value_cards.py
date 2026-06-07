@@ -12,6 +12,7 @@ from models.value_cards import (
     AnalysisExtractResponse
 )
 from api.deps import get_current_user
+from services.encryption import encrypt, decrypt
 from db import get_db
 
 router = APIRouter()
@@ -25,7 +26,7 @@ def serialize_value_card(doc) -> dict:
     return {
         "id": str(doc["_id"]),
         "keyword": doc.get("keyword"),
-        "insight": doc.get("insight"),
+        "insight": decrypt(doc.get("insight")),
         "emotion": doc.get("emotion"),
         "user_id": doc.get("user_id"),
         "created_at": doc.get("created_at")
@@ -99,7 +100,7 @@ async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(
     try:
         data = {
             "keyword": card.keyword,
-            "insight": card.insight,
+            "insight": encrypt(card.insight),
             "emotion": card.emotion,
             "user_id": user_id,
             "created_at": datetime.datetime.utcnow().isoformat()
@@ -108,6 +109,16 @@ async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(
         data["_id"] = result.inserted_id
         
         return serialize_value_card(data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+
+@router.get("/value-cards/count")
+async def get_value_cards_count(current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    user_id = current_user["id"]
+    try:
+        count = db.value_cards.count_documents({"user_id": user_id})
+        return {"count": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
 
