@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, ArrowRight, Sparkles, Info } from 'lucide-react';
+import IntentionReview from './IntentionReview';
 
 // Schwartz circumplex 4상위차원 → 색상(가치 색의 가족)
 const HIGHER_ORDER_COLORS = {
@@ -73,6 +74,9 @@ const MeaningChange = ({ token }) => {
 
   return (
     <div className="meaning-change" style={{ padding: '8px 4px', maxWidth: '880px', margin: '0 auto' }}>
+      {/* 돌아볼 다짐 (pull 재질문) — 있을 때만 표시 */}
+      <IntentionReview token={token} />
+
       {/* 정직한 요약 한 문장 */}
       <div
         className="glass-panel animate-fade-in"

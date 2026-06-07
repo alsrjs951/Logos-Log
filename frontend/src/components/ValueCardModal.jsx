@@ -9,6 +9,11 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  // insight→행동 루프: 저장된 카드에 연결할 '다짐'(선택)
+  const [savedCardId, setSavedCardId] = useState(null);
+  const [intentionText, setIntentionText] = useState('');
+  const [intentionSaving, setIntentionSaving] = useState(false);
+  const [intentionSaved, setIntentionSaved] = useState(false);
 
   // 캔버스 기반 카드 이미지 드로잉 및 다운로드 처리 함수
   const exportCardAsImage = () => {
@@ -287,12 +292,37 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
         throw new Error('가치 카드 저장 실패');
       }
 
+      const data = await response.json();
+      setSavedCardId(data.id);
       setIsSuccess(true);
     } catch (err) {
       console.error('Error saving value card:', err);
       alert('가치 카드 저장 도중 데이터베이스 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // 깨달음을 행동으로: 저장된 카드에 다짐 연결 (선택 — 강요하지 않음)
+  const handleSaveIntention = async () => {
+    if (!savedCardId || !intentionText.trim()) return;
+    setIntentionSaving(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/intentions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ card_id: savedCardId, intention: intentionText.trim() }),
+      });
+      if (!response.ok) throw new Error('다짐 저장 실패');
+      setIntentionSaved(true);
+    } catch (err) {
+      console.error('Error saving intention:', err);
+      alert('다짐 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIntentionSaving(false);
     }
   };
 
@@ -315,6 +345,44 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
             <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: '1.6', margin: '0 20px', maxWidth: '360px' }}>
               핵심 가치 키워드 <strong style={{ color: 'var(--accent-secondary)' }}>'{keyword}'</strong>가 나만의 성찰 은하에 노드로 훌륭히 매핑되었습니다.
             </p>
+
+            {/* 깨달음을 행동으로 — 선택적 다짐(insight→action 루프) */}
+            <div style={{ width: '100%', maxWidth: '420px', marginTop: '6px', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)', textAlign: 'left' }}>
+              {intentionSaved ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-main)' }}>
+                  <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>🌱</div>
+                  <p style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--text-muted)' }}>
+                    다짐을 담아두었어요. 며칠 뒤 <strong>변화 추이</strong> 화면에 들르면
+                    "그 선택, 해보니 어땠나요?"를 함께 돌아볼 수 있어요.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', marginBottom: '4px' }}>
+                    💪 이 깨달음을 작은 행동으로? <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(선택)</span>
+                  </label>
+                  <p style={{ margin: '0 0 8px', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                    이번 주에 시도해 볼 한 가지 다짐을 적어두면, 나중에 그 결과를 돌아볼 수 있어요.
+                  </p>
+                  <textarea
+                    value={intentionText}
+                    onChange={(e) => setIntentionText(e.target.value)}
+                    disabled={intentionSaving}
+                    placeholder="예: 이번 주엔 부탁을 한 번 정중히 거절해 보겠다."
+                    rows={2}
+                    style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-glass)', color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '0.86rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveIntention}
+                    disabled={intentionSaving || !intentionText.trim()}
+                    style={{ marginTop: '8px', width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(99,102,241,0.12)', color: 'var(--accent-primary, #6366f1)', fontWeight: 600, fontSize: '0.84rem', fontFamily: 'inherit', cursor: intentionText.trim() ? 'pointer' : 'not-allowed', opacity: intentionText.trim() ? 1 : 0.5 }}
+                  >
+                    {intentionSaving ? '저장 중...' : '다짐 담아두기'}
+                  </button>
+                </>
+              )}
+            </div>
             <div className="success-actions" style={{ display: 'flex', gap: '12px', marginTop: '15px', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button 
                 type="button" 
