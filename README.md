@@ -142,7 +142,13 @@
 MONGODB_URI=mongodb+srv://...                  # MongoDB Atlas 연결 문자열
 OPENAI_API_KEY=sk-...                           # LLM 응답 생성
 JWT_SECRET=<충분히 긴 무작위 문자열>            # 필수 — 미설정 시 백엔드 부팅 거부
+ENCRYPTION_KEY=<32바이트 base64>                # 일기/대화 본문 AES-256 암호화 키
 SEMANTIC_SCHOLAR_API_KEY=...                    # (선택) 논문 수집 스크립트용
+```
+
+`ENCRYPTION_KEY` 생성:
+```bash
+python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"
 ```
 
 ### 백엔드 (FastAPI · 포트 8000)

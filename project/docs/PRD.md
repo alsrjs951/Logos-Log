@@ -24,8 +24,9 @@
 > | 임베딩 모델 (M3) | `text-embedding-3-large` | **`BAAI/bge-m3`** (로컬, 1024차원) |
 > | LLM | GPT-4o / Claude | **GPT-4o-mini** (응답), GPT-3.5 Turbo (가치 카드 추출) |
 > | 위기 감지 | (계획) | **구현됨** — 키워드 기반 감지 + 상담 핫라인(1393) 배너 + 안전 응답 |
+> | 일기 본문 암호화 (M10) | AES-256 at-rest | **구현됨** — AES-256-GCM (일기·대화·가치카드 본문, `services/encryption.py`) |
 >
-> **아직 미구현(향후 과제):** 일기 본문 AES-256 암호화(M10), PII 마스킹, 하이브리드 검색(S2)/RRF, Ragas 평가 대시보드(S1), Row-Level Security.
+> **아직 미구현(향후 과제):** PII 마스킹, Row-Level Security. (하이브리드 검색 S2는 평가에서 효과 없어 미채택 — 벡터 단독 유지. 상세: rag_evaluation_plan.md §5.2)
 
 ---
 

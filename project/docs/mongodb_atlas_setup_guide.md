@@ -30,6 +30,9 @@ Logos-Log 프로젝트는 논문 데이터를 벡터 형태로 저장하고 유�
 MONGODB_URI="방금 복사한 연결 문자열"
 ```
 
+> 일기/대화 본문은 DB에 **AES-256-GCM으로 암호화 저장**됩니다. `.env`에 `ENCRYPTION_KEY`(32바이트 base64)를 설정하세요.
+> 생성: `python -c "import os,base64;print(base64.urlsafe_b64encode(os.urandom(32)).decode())"` — 분실 시 기존 암호문 복호화가 불가하니 안전하게 보관하세요.
+
 ---
 
 ## 3단계: 컬렉션 구조
