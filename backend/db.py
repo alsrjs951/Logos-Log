@@ -78,6 +78,7 @@ def ensure_indexes():
         (db.value_cards, [("user_id", ASCENDING), ("created_at", DESCENDING)], "value_cards_user_created_at"),
         (db.chat_messages, [("journal_id", ASCENDING), ("created_at", ASCENDING)], "chat_messages_journal_created_at"),
         (db.chat_messages, [("user_id", ASCENDING)], "chat_messages_user"),
+        (db.intentions, [("user_id", ASCENDING), ("status", ASCENDING), ("created_at", ASCENDING)], "intentions_user_status_created_at"),
     ]
 
     for collection, keys, name in secondary_indexes:

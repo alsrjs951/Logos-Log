@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.chat import router as chat_router
 from api.journals import router as journal_router
 from api.value_cards import router as value_card_router
+from api.intentions import router as intention_router
 from api.auth import router as auth_router
 from api.report import router as report_router
 
@@ -44,6 +45,7 @@ app.include_router(auth_router, prefix="/api", tags=["Auth"])
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
 app.include_router(journal_router, prefix="/api", tags=["Journals"])
 app.include_router(value_card_router, prefix="/api", tags=["Value Cards"])
+app.include_router(intention_router, prefix="/api", tags=["Intentions"])
 app.include_router(report_router, prefix="/api", tags=["Report"])
 
 @app.get("/")
