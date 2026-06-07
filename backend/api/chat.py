@@ -110,4 +110,5 @@ async def get_chat_history_endpoint(journal_id: str, current_user: dict = Depend
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"대화 이력 조회 중 오류 발생: {str(e)}")
+        print(f"[chat] history error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="대화 이력 조회 중 오류가 발생했습니다.")

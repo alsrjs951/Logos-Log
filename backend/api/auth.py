@@ -97,7 +97,8 @@ async def signup(credentials: UserCredentials):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"회원가입 중 서버 오류 발생: {str(e)}")
+        print(f"[auth] signup error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="회원가입 처리 중 오류가 발생했습니다.")
 
 @router.post("/auth/login")
 async def login(credentials: UserCredentials):

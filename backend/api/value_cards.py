@@ -91,7 +91,8 @@ async def extract_value_card(
             raise HTTPException(status_code=500, detail="AI가 올바른 JSON 형식으로 가치를 추출하지 못했습니다.")
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"가치 추출 오류: {str(e)}")
+        print(f"[value_cards] extract error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="가치 추출 처리 중 오류가 발생했습니다.")
 
 @router.post("/value-cards", response_model=ValueCardResponse)
 async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(get_current_user)):
@@ -110,7 +111,8 @@ async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(
         
         return serialize_value_card(data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[value_cards] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/value-cards/count")
 async def get_value_cards_count(current_user: dict = Depends(get_current_user)):
@@ -120,7 +122,8 @@ async def get_value_cards_count(current_user: dict = Depends(get_current_user)):
         count = db.value_cards.count_documents({"user_id": user_id})
         return {"count": count}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[value_cards] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/value-cards", response_model=List[ValueCardResponse])
 async def get_value_cards(current_user: dict = Depends(get_current_user)):
@@ -131,4 +134,5 @@ async def get_value_cards(current_user: dict = Depends(get_current_user)):
         cards = [serialize_value_card(doc) for doc in cursor]
         return cards
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"데이터베이스 오류: {str(e)}")
+        print(f"[value_cards] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
