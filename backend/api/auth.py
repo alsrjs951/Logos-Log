@@ -57,7 +57,11 @@ async def signup(credentials: UserCredentials):
     """
     db = get_db()
     email = normalize_email(credentials.email)
-    
+
+    # 비밀번호 최소 길이 서버 측 강제 (프론트 검증 우회 방지)
+    if len(credentials.password) < 8:
+        raise HTTPException(status_code=400, detail="비밀번호는 최소 8자 이상이어야 합니다.")
+
     try:
         # DB 왕복과 bcrypt 해싱을 겹쳐서 신규 가입의 체감 대기 시간을 줄인다.
         existing_user, hashed = await asyncio.gather(

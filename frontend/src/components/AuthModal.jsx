@@ -121,7 +121,7 @@ const AuthModal = ({ onLoginSuccess }) => {
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}
               />
             </div>
-            {!isLoginMode && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>최소 6자 이상이어야 합니다.</span>}
+            {!isLoginMode && <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>최소 8자 이상이어야 합니다.</span>}
           </div>
 
           <button 
