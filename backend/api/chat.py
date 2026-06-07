@@ -2,12 +2,16 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from models.chat import ChatRequest
-from services.rag_service import RAGService
 from api.deps import get_current_user
 from db import get_db
+from functools import lru_cache
 
 router = APIRouter()
-rag_service = RAGService()
+
+@lru_cache(maxsize=1)
+def get_rag_service():
+    from services.rag_service import RAGService
+    return RAGService()
 
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_current_user)):
@@ -16,6 +20,7 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
     LLM의 답변을 실시간 스트리밍(SSE)으로 반환합니다.
     """
     user_id = current_user["id"]
+    rag_service = get_rag_service()
     return StreamingResponse(
         rag_service.get_streaming_response(
             query=request.query, 
@@ -34,6 +39,7 @@ async def get_chat_history_endpoint(journal_id: str, current_user: dict = Depend
     (데이터 접근 소유권 검증 포함)
     """
     db = get_db()
+    rag_service = get_rag_service()
     user_id = current_user["id"]
     try:
         # MongoDB ObjectId 파싱 검증
