@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Award, Calendar } from 'lucide-react';
+import { Loader2, Award, Calendar, Compass, TrendingUp } from 'lucide-react';
+import MeaningChange from './MeaningChange';
 
 const EMOTION_FILTERS = [
   { key: 'all', label: '전체 은하', emoji: '🌌', color: 'var(--accent-primary)' },
@@ -15,6 +16,7 @@ const MeaningNetwork = ({ token }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
+  const [activeTab, setActiveTab] = useState('explore'); // 'explore' | 'change'
   
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -105,13 +107,17 @@ const MeaningNetwork = ({ token }) => {
     }
     backgroundStarsRef.current = stars;
 
-    // 2. 키워드별 그룹화 및 클러스터 생성
+    // 2. canonical 가치별 그룹화 및 클러스터 생성
+    //    같은 가치를 다른 자유 키워드("자율성"/"자유"/"독립")로 적어도 한 클러스터로 모인다.
+    //    canonical 이 없는(레거시·미분류) 카드는 keyword 로 그룹화(폴백).
+    const groupKeyOf = (card) => card.canonical_value || card.keyword;
     const groups = {};
     cardsData.forEach(card => {
-      if (!groups[card.keyword]) {
-        groups[card.keyword] = [];
+      const gkey = groupKeyOf(card);
+      if (!groups[gkey]) {
+        groups[gkey] = [];
       }
-      groups[card.keyword].push(card);
+      groups[gkey].push(card);
     });
 
     const uniqueKeywords = Object.keys(groups);
@@ -134,9 +140,9 @@ const MeaningNetwork = ({ token }) => {
       };
     });
 
-    // 개별 성찰 카드를 각 키워드 클러스터 주변에 분산 배치
+    // 개별 성찰 카드를 각 가치 클러스터 주변에 분산 배치
     cardsData.forEach(card => {
-      const kw = card.keyword;
+      const kw = groupKeyOf(card);
       const center = clusterCenters[kw];
       const itemsInGroup = groups[kw];
       const cardIndex = itemsInGroup.findIndex(item => item.id === card.id);
@@ -158,6 +164,7 @@ const MeaningNetwork = ({ token }) => {
 
       nodes.push({
         ...card,
+        groupKey: kw, // canonical 가치(또는 폴백 keyword) — 클러스터·엣지 기준
         base3D: { x, y, z }, // 초기 3D 원본 좌표
         rotated3D: { x, y, z }, // 회전 후 3D 좌표
         projected2D: { x: 0, y: 0, visible: false }, // 화면에 투영된 2D 좌표
@@ -271,9 +278,9 @@ const MeaningNetwork = ({ token }) => {
       // 3. 별자리 선(Edges) 3D 그리기
       ctx.lineWidth = 1;
       
-      const uniqueKeywords = [...new Set(nodes.map(n => n.keyword))];
+      const uniqueKeywords = [...new Set(nodes.map(n => n.groupKey))];
       uniqueKeywords.forEach(kw => {
-        const groupNodes = nodes.filter(n => n.keyword === kw);
+        const groupNodes = nodes.filter(n => n.groupKey === kw);
         const groupColor = groupNodes[0]?.color;
 
         for (let i = 0; i < groupNodes.length; i++) {
@@ -385,7 +392,7 @@ const MeaningNetwork = ({ token }) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isLoading, cards, selectedNode]);
+  }, [isLoading, cards, selectedNode, activeTab]);
 
   // 마우스 상호작용 관련 핸들러들
   const handleMouseDown = (e) => {
@@ -717,7 +724,39 @@ const MeaningNetwork = ({ token }) => {
           <Loader2 className="animate-spin" size={32} color="var(--accent-primary)" />
           <p>은하수 성찰 네트워크를 형성하는 중...</p>
         </div>
-      ) : cards.length === 0 ? (
+      ) : (
+        <>
+        {/* 탐색(은하) / 변화(추이) 탭 전환 */}
+        <div className="network-tabs" style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'center' }}>
+          {[
+            { key: 'explore', label: '탐색 은하', Icon: Compass },
+            { key: 'change', label: '변화 추이', Icon: TrendingUp },
+          ].map(({ key, label, Icon }) => {
+            const active = activeTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 18px', borderRadius: '999px', cursor: 'pointer',
+                  fontFamily: 'inherit', fontWeight: 600, fontSize: '0.86rem',
+                  border: '1px solid var(--border-glass)',
+                  background: active ? 'var(--accent-primary)' : 'rgba(255,255,255,0.04)',
+                  color: active ? '#fff' : 'var(--text-muted)',
+                  transition: 'all 0.25s',
+                }}
+              >
+                <Icon size={15} />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeTab === 'change' ? (
+          <MeaningChange token={token} />
+        ) : cards.length === 0 ? (
         <div className="network-empty-state">
           <div className="network-empty-icon">🌌</div>
           <h3>성찰 은하수가 아직 고요합니다</h3>
@@ -863,6 +902,8 @@ const MeaningNetwork = ({ token }) => {
             </div>
           )}
         </div>
+        )}
+        </>
       )}
     </div>
   );

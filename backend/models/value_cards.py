@@ -13,6 +13,10 @@ class ValueCardResponse(BaseModel):
     insight: str
     emotion: Optional[str] = None
     created_at: datetime
+    # 종단 추적용 정규화 축(Schwartz). 레거시 카드는 None("미분류").
+    canonical_value: Optional[str] = None
+    canonical_confidence: Optional[float] = None
+    canonical_method: Optional[str] = None
 
 class HistoryItem(BaseModel):
     role: str

@@ -1,0 +1,49 @@
+{
+  "description": "가치 택소노미 분류(classify_value) 평가용 라벨셋. (keyword, insight) → gold Schwartz canonical value. classify_value 가 자유 키워드를 안정 축(Schwartz 10)으로 정규화하는 정확도를 측정한다. gold 는 개발자 초안이며 일부 경계 사례(예: '인정'→power vs achievement, '책임'→conformity)는 2nd judge 검수가 필요하다.",
+  "metric_target": { "top1_accuracy": 0.80, "note": "plan Phase 0 게이트: top-1 ≥ 0.80" },
+  "taxonomy": "Schwartz 10 basic values (services/value_taxonomy.py)",
+  "cases": [
+    { "id": "t01", "keyword": "자율성", "insight": "남의 기대가 아니라 내 기준으로 선택할 때 비로소 살아있다고 느꼈다.", "gold": "self_direction" },
+    { "id": "t02", "keyword": "자유", "insight": "정답을 따르기보다 내 길을 스스로 정하는 것이 나에게 가장 중요하다.", "gold": "self_direction" },
+    { "id": "t03", "keyword": "독립", "insight": "혼자 결정하고 그 결과를 책임지는 과정에서 나다움을 찾았다.", "gold": "self_direction" },
+    { "id": "t04", "keyword": "주체성", "insight": "내 삶의 방향을 스스로 정할 때 가장 나답다고 느낀다.", "gold": "self_direction" },
+
+    { "id": "t05", "keyword": "도전", "insight": "익숙함에 머물기보다 새로운 시도를 할 때 가슴이 뛴다.", "gold": "stimulation" },
+    { "id": "t06", "keyword": "모험", "insight": "낯설고 새로운 경험이 나를 확장시킨다는 걸 깨달았다.", "gold": "stimulation" },
+    { "id": "t07", "keyword": "설렘", "insight": "반복되는 일상보다 변화와 자극이 나를 깨운다.", "gold": "stimulation" },
+
+    { "id": "t08", "keyword": "즐거움", "insight": "지금 이 순간의 기쁨을 충분히 누리는 것도 삶의 중요한 부분이다.", "gold": "hedonism" },
+    { "id": "t09", "keyword": "여유", "insight": "삶을 감각적으로 음미하며 즐기는 여유를 되찾고 싶다.", "gold": "hedonism" },
+    { "id": "t10", "keyword": "쾌락", "insight": "스스로에게 작은 즐거움과 만족을 허락하는 법을 배웠다.", "gold": "hedonism" },
+
+    { "id": "t11", "keyword": "성취", "insight": "목표를 이뤄내며 내 유능함을 확인할 때 큰 보람을 느낀다.", "gold": "achievement" },
+    { "id": "t12", "keyword": "유능함", "insight": "맡은 일을 잘 해내는 데서 자존감이 온다.", "gold": "achievement" },
+    { "id": "t13", "keyword": "성공", "insight": "노력으로 성과를 내고 그 능력을 인정받는 것이 내 원동력이다.", "gold": "achievement" },
+
+    { "id": "t14", "keyword": "영향력", "insight": "사람들과 자원을 이끌며 영향력을 갖는 것이 중요하다고 느꼈다.", "gold": "power" },
+    { "id": "t15", "keyword": "지위", "insight": "사회적 지위와 위신이 나에게 생각보다 큰 동기였다.", "gold": "power" },
+    { "id": "t16", "keyword": "통제", "insight": "상황과 사람을 내가 주도해 통제할 때 안정감을 느낀다.", "gold": "power" },
+
+    { "id": "t17", "keyword": "안정", "insight": "예측 가능하고 안전한 일상이 내 마음의 토대임을 알았다.", "gold": "security" },
+    { "id": "t18", "keyword": "건강", "insight": "무엇보다 나와 가족의 안전과 평온이 우선이라는 걸 깨달았다.", "gold": "security" },
+    { "id": "t19", "keyword": "질서", "insight": "흔들리지 않는 안정과 질서 속에서 비로소 편안하다.", "gold": "security" },
+
+    { "id": "t20", "keyword": "예의", "insight": "규범과 기대를 지키며 남에게 폐 끼치지 않는 절제가 중요하다.", "gold": "conformity" },
+    { "id": "t21", "keyword": "절제", "insight": "내 충동을 누르고 사회적 규칙을 따르는 데서 안정을 찾는다.", "gold": "conformity" },
+    { "id": "t22", "keyword": "도리", "insight": "주어진 규범과 도리를 어기지 않는 것이 나의 원칙이다.", "gold": "conformity" },
+
+    { "id": "t23", "keyword": "전통", "insight": "오래된 관습과 신념을 존중하며 따르는 데서 정체성을 느낀다.", "gold": "tradition" },
+    { "id": "t24", "keyword": "신앙", "insight": "종교적 가치와 가르침이 내 삶의 중심을 잡아준다.", "gold": "tradition" },
+    { "id": "t25", "keyword": "뿌리", "insight": "가문과 문화의 전통을 잇는 것이 나에게 의미 있다.", "gold": "tradition" },
+
+    { "id": "t26", "keyword": "관계", "insight": "가까운 사람들을 돌보고 신의를 지키는 것이 가장 큰 의미였다.", "gold": "benevolence" },
+    { "id": "t27", "keyword": "사랑", "insight": "곁의 사람에게 따뜻함을 베푸는 데서 내 존재 이유를 찾는다.", "gold": "benevolence" },
+    { "id": "t28", "keyword": "돌봄", "insight": "내가 아끼는 이들의 안녕을 지키는 일이 나를 충만하게 한다.", "gold": "benevolence" },
+    { "id": "t29", "keyword": "우정", "insight": "친구의 곁을 지키고 보살피는 마음이 나를 움직였다.", "gold": "benevolence" },
+
+    { "id": "t30", "keyword": "정의", "insight": "모든 사람이 공평하게 대우받는 사회를 바라는 마음이 크다.", "gold": "universalism" },
+    { "id": "t31", "keyword": "환경", "insight": "자연과 약자를 보호하는 것이 나의 책임이라 느꼈다.", "gold": "universalism" },
+    { "id": "t32", "keyword": "포용", "insight": "나와 다른 사람들까지 이해하고 관용하는 태도가 중요하다.", "gold": "universalism" },
+    { "id": "t33", "keyword": "평등", "insight": "차별 없이 모두의 존엄을 지키는 일에 마음이 간다.", "gold": "universalism" }
+  ]
+}

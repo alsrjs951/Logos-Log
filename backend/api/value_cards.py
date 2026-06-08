@@ -13,6 +13,8 @@ from models.value_cards import (
 )
 from api.deps import get_current_user
 from services.encryption import encrypt, decrypt
+from services.value_taxonomy import classify_value, public_taxonomy
+from services.value_trends import compute_trends
 from db import get_db
 
 router = APIRouter()
@@ -29,7 +31,10 @@ def serialize_value_card(doc) -> dict:
         "insight": decrypt(doc.get("insight")),
         "emotion": doc.get("emotion"),
         "user_id": doc.get("user_id"),
-        "created_at": doc.get("created_at")
+        "created_at": doc.get("created_at"),
+        "canonical_value": doc.get("canonical_value"),
+        "canonical_confidence": doc.get("canonical_confidence"),
+        "canonical_method": doc.get("canonical_method"),
     }
 
 @router.post("/value-cards/extract", response_model=AnalysisExtractResponse)
@@ -99,12 +104,20 @@ async def create_value_card(card: ValueCardCreate, current_user: dict = Depends(
     db = get_db()
     user_id = current_user["id"]
     try:
+        # 자유 keyword 는 표면 라벨로 보존하고, 그 아래 Schwartz canonical 값을 부여한다.
+        # (사용자가 모달에서 편집한 최종 keyword/insight 기준으로 서버가 권위 분류)
+        canonical_value, canonical_confidence, canonical_method = classify_value(
+            card.keyword, card.insight
+        )
         data = {
             "keyword": card.keyword,
             "insight": encrypt(card.insight),
             "emotion": card.emotion,
             "user_id": user_id,
-            "created_at": datetime.datetime.utcnow().isoformat()
+            "created_at": datetime.datetime.utcnow().isoformat(),
+            "canonical_value": canonical_value,
+            "canonical_confidence": canonical_confidence,
+            "canonical_method": canonical_method,
         }
         result = db.value_cards.insert_one(data)
         data["_id"] = result.inserted_id
@@ -124,6 +137,35 @@ async def get_value_cards_count(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         print(f"[value_cards] DB error: {e}", flush=True)
         raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
+
+@router.get("/value-cards/taxonomy")
+async def get_value_taxonomy():
+    """프론트 시각화용 Schwartz 택소노미(라벨·상위차원·circumplex 각도). 인증 불필요(정적 메타)."""
+    return {"values": public_taxonomy()}
+
+
+@router.get("/value-cards/trends")
+async def get_value_card_trends(current_user: dict = Depends(get_current_user)):
+    """
+    사용자 가치카드의 종단 변화(then-vs-now, 월별 타임라인, 정직 요약).
+    canonical_value·created_at 만 사용하므로 insight 복호화는 불필요하다.
+    """
+    db = get_db()
+    user_id = current_user["id"]
+    try:
+        cursor = db.value_cards.find(
+            {"user_id": user_id},
+            {"canonical_value": 1, "created_at": 1}
+        )
+        cards = [
+            {"canonical_value": doc.get("canonical_value"), "created_at": doc.get("created_at")}
+            for doc in cursor
+        ]
+        return compute_trends(cards)
+    except Exception as e:
+        print(f"[value_cards] DB error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
+
 
 @router.get("/value-cards", response_model=List[ValueCardResponse])
 async def get_value_cards(current_user: dict = Depends(get_current_user)):
