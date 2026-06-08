@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Loader2, ArrowRight, Sparkles, Info } from 'lucide-react';
 import IntentionReview from './IntentionReview';
 
@@ -186,11 +186,11 @@ const ThenVsNow = ({ tvn, label, color }) => {
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>예전 ({then.count})</div>
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>지금 ({now.count})</div>
         {keys.map((k) => (
-          <React.Fragment key={k}>
+          <Fragment key={k}>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', textAlign: 'right', fontWeight: 600 }}>{label(k)}</div>
             <Bar pct={(then.distribution[k] || 0) * 100} c={color(k)} />
             <Bar pct={(now.distribution[k] || 0) * 100} c={color(k)} />
-          </React.Fragment>
+          </Fragment>
         ))}
       </div>
     </div>

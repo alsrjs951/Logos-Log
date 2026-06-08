@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Sparkles, RefreshCw, TrendingUp } from 'lucide-react';
 
 const WeeklyReport = ({ token }) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, Award, Calendar, Compass, TrendingUp } from 'lucide-react';
 import MeaningChange from './MeaningChange';
 
@@ -333,9 +333,6 @@ const MeaningNetwork = ({ token }) => {
         const depthOpacity = Math.max(0.2, Math.min(1.0, 1 - (node.rotated3D.z + 100) / 400));
         const finalOpacity = depthOpacity * node.filterAlpha;
 
-        // 필터링에서 제외되고 호버되지 않은 노드는 클릭 차단
-        const isInteractive = currentFilter === 'all' || node.emotion === currentFilter || isHovered;
-
         // 4-1. 선택/호버 시 네온 빛 후광 글로우 효과 (Canvas shadow 기능 사용)
         if ((isSelected || isHovered) && node.filterAlpha > 0.3) {
           ctx.save();
@@ -506,7 +503,7 @@ const MeaningNetwork = ({ token }) => {
     try {
       const date = new Date(dateString);
       return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
-    } catch (e) {
+    } catch {
       return dateString;
     }
   };
@@ -673,15 +670,13 @@ const MeaningNetwork = ({ token }) => {
 
   const drawStar = (ctx, cx, cy, spikes, outerRadius, innerRadius) => {
     let rot = Math.PI / 2 * 3;
-    let x = cx;
-    let y = cy;
-    let step = Math.PI / spikes;
+    const step = Math.PI / spikes;
 
     ctx.beginPath();
     ctx.moveTo(cx, cy - outerRadius);
     for (let i = 0; i < spikes; i++) {
-      x = cx + Math.cos(rot) * outerRadius;
-      y = cy + Math.sin(rot) * outerRadius;
+      let x = cx + Math.cos(rot) * outerRadius;
+      let y = cy + Math.sin(rot) * outerRadius;
       ctx.lineTo(x, y);
       rot += step;
 

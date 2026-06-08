@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ArrowRight, BookOpen, MessageSquare, Sparkles, BrainCircuit } from 'lucide-react';
 
 const STEPS = [

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Calendar, Award, MessageSquare, Globe, ChevronLeft, ChevronRight, BookOpen, Clock, Activity, Flame, Star } from 'lucide-react';
 import WeeklyReport from './WeeklyReport';

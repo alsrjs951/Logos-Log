@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
@@ -68,7 +68,7 @@ const preprocessCitations = (text) => {
 };
 
 // 2단계 핵심 요약 팝오버를 관리하는 개별 인라인 텍스트 컴포넌트
-const CitationBadge = ({ href, index, sources, msgIndex }) => {
+const CitationBadge = ({ href, sources, msgIndex }) => {
   const [showPopover, setShowPopover] = useState(false);
   const popoverRef = useRef(null);
 
@@ -551,11 +551,9 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
                   components={{
                     a: ({ href, children }) => {
                       if (href && href.startsWith('#source-')) {
-                        const sourceIndex = parseInt(href.replace('#source-', ''));
                         return (
                           <CitationBadge 
                             href={href} 
-                            index={sourceIndex} 
                             sources={msg.sources} 
                             msgIndex={index}
                           />

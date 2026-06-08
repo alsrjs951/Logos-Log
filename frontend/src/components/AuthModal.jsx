@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
 
 const AuthModal = ({ onLoginSuccess }) => {
@@ -115,7 +115,7 @@ const AuthModal = ({ onLoginSuccess }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                minLength={6}
+                minLength={8}
                 style={{ width: '100%', padding: '12px 12px 12px 38px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: 'var(--text-main)', fontSize: '0.9rem', outline: 'none', transition: 'all 0.25s', boxSizing: 'border-box' }}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent-secondary)'}
                 onBlur={(e) => e.target.style.borderColor = 'rgba(255,255,255,0.08)'}

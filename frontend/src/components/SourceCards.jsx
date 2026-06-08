@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, ChevronDown, ChevronUp, X, ExternalLink, Sparkles } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronUp, X, Sparkles } from 'lucide-react';
 
 // 카테고리별 색상 및 아이콘 매핑
 const CATEGORY_STYLES = {

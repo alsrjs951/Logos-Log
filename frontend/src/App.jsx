@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ChatWindow from './components/ChatWindow';
 import JournalEditor from './components/JournalEditor';
 import JournalList from './components/JournalList';
@@ -238,7 +238,7 @@ function App() {
                   ...j,
                   is_analyzed: analyzedIds.includes(j.id)
                 };
-              } catch (e) {
+              } catch {
                 return j;
               }
             })} 
