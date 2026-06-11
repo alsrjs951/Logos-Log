@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Check, X } from 'lucide-react';
+import { apiUrl } from '../api';
 
 /**
- * 돌아볼 다짐 — insight→행동→결과 루프의 닫는 고리.
+ * 돌아볼 다짐 - insight→행동→결과 루프의 닫는 고리.
  * 며칠 지난 '열린 다짐'을 사용자가 변화뷰에 들렀을 때만 보여준다(pull, not push).
  * "그 선택, 해보니 어땠나요?"의 결과와 도움정도를 기록하거나, 부담 없이 접어둘 수 있다.
  * 돌아볼 다짐이 없으면 아무것도 렌더링하지 않는다.
@@ -16,7 +17,7 @@ const IntentionReview = ({ token, onChange }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/intentions/due', {
+        const res = await fetch(apiUrl('/api/intentions/due'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) setDue(await res.json());
@@ -39,7 +40,7 @@ const IntentionReview = ({ token, onChange }) => {
     if (!draft.outcome || !draft.outcome.trim()) return;
     setBusyId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/intentions/${id}/reflect`, {
+      const res = await fetch(apiUrl(`/api/intentions/${id}/reflect`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ outcome: draft.outcome.trim(), helpfulness: draft.helpfulness }),
@@ -58,7 +59,7 @@ const IntentionReview = ({ token, onChange }) => {
   const dismiss = async (id) => {
     setBusyId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/intentions/${id}/dismiss`, {
+      const res = await fetch(apiUrl(`/api/intentions/${id}/dismiss`), {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });

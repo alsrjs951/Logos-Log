@@ -7,7 +7,7 @@ const STEPS = [
     emoji: '🌌',
     title: 'Logos-Log에 오신 것을 환영합니다',
     description:
-      'AI와 함께하는 깊이 있는 자아 탐구 여정이 시작됩니다.\n단순한 일기 앱이 아닙니다 — 당신의 삶의 의미를 과학적으로 분석해드립니다.',
+      'AI와 함께하는 깊이 있는 자아 탐구 여정이 시작됩니다.\n단순한 일기 앱이 아닙니다. 당신의 삶의 의미를 과학적으로 분석해드립니다.',
     cta: '시작하기',
     visual: (
       <div style={{ fontSize: '4rem', textAlign: 'center', marginBottom: '8px', filter: 'drop-shadow(0 0 20px rgba(99,102,241,0.5))' }}>

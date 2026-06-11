@@ -7,6 +7,7 @@ import AuthModal from './components/AuthModal';
 import Dashboard from './components/Dashboard';
 import OnboardingFlow from './components/OnboardingFlow';
 import { BrainCircuit, Plus, MessageSquare, Globe, LogOut, Activity } from 'lucide-react';
+import { apiUrl } from './api';
 import './App.css';
 
 function App() {
@@ -53,7 +54,7 @@ function App() {
     }
     try {
       setIsJournalsLoading(true);
-      const response = await fetch('http://localhost:8000/api/journals', {
+      const response = await fetch(apiUrl('/api/journals'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -125,7 +126,7 @@ function App() {
     }
     
     try {
-      const response = await fetch(`http://localhost:8000/api/journals/${journalId}`, {
+      const response = await fetch(apiUrl(`/api/journals/${journalId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

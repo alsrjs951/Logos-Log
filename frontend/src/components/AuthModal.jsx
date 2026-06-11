@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const AuthModal = ({ onLoginSuccess }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -19,7 +20,7 @@ const AuthModal = ({ onLoginSuccess }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      const response = await fetch(`http://localhost:8000/api/auth/${endpoint}`, {
+      const response = await fetch(apiUrl(`/api/auth/${endpoint}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

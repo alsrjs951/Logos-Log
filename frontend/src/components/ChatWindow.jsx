@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
 import ValueCardModal from './ValueCardModal';
-import { Bot, User, Loader2, Heart, Phone } from 'lucide-react';
+import { Bot, User, Heart, Phone } from 'lucide-react';
+import { apiUrl } from '../api';
 
 // 자해/자살 위기 감지 시 노출되는 검증된 전문 상담 핫라인 (단일 소스)
 const CRISIS_RESOURCES = [
@@ -67,25 +69,83 @@ const preprocessCitations = (text) => {
   return formatted;
 };
 
-// 2단계 핵심 요약 팝오버를 관리하는 개별 인라인 텍스트 컴포넌트
+// 2단계 근거 발췌 요약 팝오버를 관리하는 개별 인라인 텍스트 컴포넌트
 const CitationBadge = ({ href, sources, msgIndex }) => {
   const [showPopover, setShowPopover] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState(null);
+  const wrapperRef = useRef(null);
   const popoverRef = useRef(null);
+  const closeTimerRef = useRef(null);
 
   const sourceIndex = parseInt(href.replace('#source-', ''));
   const source = sources && sources[sourceIndex - 1];
-  if (!source) return <span>[{sourceIndex}]</span>;
 
-  const rawAuthor = source.author || '';
+  const rawAuthor = source?.author || '';
   const authorText = rawAuthor.length > 12 
     ? rawAuthor.substring(0, 12) + '...' 
     : rawAuthor;
 
   const citationLabel = `[${sourceIndex}]`;
+  const sourceTitle = String(source?.title || source?.filename || '').replace(/\s+/g, ' ').trim();
+  const locationParts = [];
+  if (source?.section) locationParts.push(source.section);
+  if (source?.page_start && source?.page_end && source.page_start !== source.page_end) {
+    locationParts.push(`p. ${source.page_start}-${source.page_end}`);
+  } else if (source?.page_start) {
+    locationParts.push(`p. ${source.page_start}`);
+  }
+  const locationLabel = locationParts.join(' · ');
+
+  const updatePopoverPosition = () => {
+    const trigger = wrapperRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 16;
+    const width = Math.min(320, Math.max(240, window.innerWidth - viewportPadding * 2));
+    const centerX = rect.left + rect.width / 2;
+    const left = Math.min(
+      Math.max(viewportPadding, centerX - width / 2),
+      window.innerWidth - width - viewportPadding
+    );
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const placement = spaceAbove > spaceBelow && spaceAbove > 180 ? 'top' : 'bottom';
+    const availableHeight = placement === 'top'
+      ? Math.max(140, rect.top - viewportPadding * 2)
+      : Math.max(140, window.innerHeight - rect.bottom - viewportPadding * 2);
+
+    setPopoverPosition({
+      left,
+      width,
+      top: placement === 'top' ? rect.top - 12 : rect.bottom + 12,
+      placement,
+      arrowX: Math.min(Math.max(18, centerX - left), width - 18),
+      maxHeight: Math.min(360, availableHeight),
+    });
+  };
+
+  const openPopover = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    updatePopoverPosition();
+    setShowPopover(true);
+  };
+
+  const scheduleClosePopover = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+    }
+    closeTimerRef.current = setTimeout(() => {
+      setShowPopover(false);
+    }, 140);
+  };
 
   const handleCitationClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    updatePopoverPosition();
     setShowPopover(prev => !prev);
   };
 
@@ -100,20 +160,44 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
     }
   };
 
-  const summaryText = source.summary_ko 
+  const summaryText = source?.summary_ko
     ? source.summary_ko 
-    : (source.content_ko || source.content || '').slice(0, 85) + '...';
+    : (source?.content_ko || source?.content || '').slice(0, 85) + '...';
+
+  useEffect(() => {
+    if (!showPopover) return;
+
+    updatePopoverPosition();
+    window.addEventListener('resize', updatePopoverPosition);
+    window.addEventListener('scroll', updatePopoverPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePopoverPosition);
+      window.removeEventListener('scroll', updatePopoverPosition, true);
+    };
+  }, [showPopover]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  if (!source) return <span>[{sourceIndex}]</span>;
 
   return (
     <span 
+      ref={wrapperRef}
       className="inline-citation-text-wrapper"
       style={{ position: 'relative', display: 'inline-block' }}
-      onMouseEnter={() => setShowPopover(true)}
-      onMouseLeave={() => setShowPopover(false)}
+      onMouseEnter={openPopover}
+      onMouseLeave={scheduleClosePopover}
     >
       <span 
         className={`inline-citation-text ${showPopover ? 'highlighted' : ''}`}
-        title="마우스를 올리거나 클릭하여 핵심 요약 보기"
+        title="마우스를 올리거나 클릭하여 근거 발췌 요약 보기"
         style={{
           cursor: 'pointer',
           color: '#818cf8',
@@ -132,15 +216,17 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
         {citationLabel}
       </span>
 
-      {showPopover && (
+      {showPopover && popoverPosition && createPortal(
         <div
           ref={popoverRef}
+          className="citation-popover"
           style={{
-            position: 'absolute',
-            bottom: '115%',
-            left: 0,
-            transform: 'none',
-            width: '280px',
+            position: 'fixed',
+            top: `${popoverPosition.top}px`,
+            left: `${popoverPosition.left}px`,
+            transform: popoverPosition.placement === 'top' ? 'translateY(-100%)' : 'none',
+            width: `${popoverPosition.width}px`,
+            maxHeight: `${popoverPosition.maxHeight}px`,
             background: 'rgba(12, 14, 28, 0.98)',
             border: '1px solid rgba(99, 102, 241, 0.45)',
             borderRadius: '12px',
@@ -154,8 +240,11 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
             gap: '8px',
             pointerEvents: 'auto',
             backdropFilter: 'blur(10px)',
+            overflowY: 'auto',
           }}
           onClick={e => e.stopPropagation()}
+          onMouseEnter={openPopover}
+          onMouseLeave={scheduleClosePopover}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{
@@ -164,7 +253,7 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
               color: 'rgba(255,255,255,0.4)',
               letterSpacing: '0.5px'
             }}>
-              [참고문헌 {sourceIndex}]
+              [근거 발췌 {sourceIndex}]
             </span>
             <span style={{
               fontSize: '0.68rem',
@@ -181,9 +270,43 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
             color: 'var(--text-main)',
             margin: 0,
             fontWeight: '500',
+            overflowWrap: 'anywhere',
+            wordBreak: 'keep-all',
           }}>
             {summaryText}
           </p>
+
+          {(sourceTitle || locationLabel) && (
+            <div style={{
+              padding: '8px 10px',
+              background: 'rgba(255,255,255,0.035)',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: '8px',
+            }}>
+              {sourceTitle && (
+                <p style={{
+                  fontSize: '0.68rem',
+                  lineHeight: 1.4,
+                  color: 'var(--text-main)',
+                  fontWeight: 650,
+                  margin: 0,
+                }}>
+                  {sourceTitle.length > 92 ? `${sourceTitle.slice(0, 92).trim()}…` : sourceTitle}
+                </p>
+              )}
+              {locationLabel && (
+                <p style={{
+                  fontSize: '0.65rem',
+                  lineHeight: 1.35,
+                  color: '#a5b4fc',
+                  fontWeight: 700,
+                  margin: sourceTitle ? '4px 0 0' : 0,
+                }}>
+                  {locationLabel}
+                </p>
+              )}
+            </div>
+          )}
 
           <button
             onClick={handleOpenDetail}
@@ -203,6 +326,8 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
               gap: '4px',
               transition: 'all 0.2s',
               width: '100%',
+              lineHeight: 1.35,
+              whiteSpace: 'normal',
             }}
             onMouseEnter={e => {
               e.currentTarget.style.background = 'rgba(99, 102, 241, 0.25)';
@@ -213,34 +338,77 @@ const CitationBadge = ({ href, sources, msgIndex }) => {
               e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.3)';
             }}
           >
-            <span>상세 학술 정보 및 원문 대조 보기 ➜</span>
+            <span>근거 발췌와 출처 정보 보기 ➜</span>
           </button>
 
           <div style={{
             position: 'absolute',
-            top: '100%',
-            left: '15px',
+            top: popoverPosition.placement === 'top' ? '100%' : 'auto',
+            bottom: popoverPosition.placement === 'bottom' ? '100%' : 'auto',
+            left: `${popoverPosition.arrowX}px`,
             transform: 'translateX(-50%)',
             width: 0,
             height: 0,
             borderLeft: '7px solid transparent',
             borderRight: '7px solid transparent',
-            borderTop: '7px solid rgba(99, 102, 241, 0.45)',
+            borderTop: popoverPosition.placement === 'top' ? '7px solid rgba(99, 102, 241, 0.45)' : 'none',
+            borderBottom: popoverPosition.placement === 'bottom' ? '7px solid rgba(99, 102, 241, 0.45)' : 'none',
           }} />
           <div style={{
             position: 'absolute',
-            top: '99%',
-            left: '15px',
+            top: popoverPosition.placement === 'top' ? '99%' : 'auto',
+            bottom: popoverPosition.placement === 'bottom' ? '99%' : 'auto',
+            left: `${popoverPosition.arrowX}px`,
             transform: 'translateX(-50%)',
             width: 0,
             height: 0,
             borderLeft: '6px solid transparent',
             borderRight: '6px solid transparent',
-            borderTop: '6px solid rgba(12, 14, 28, 0.98)',
+            borderTop: popoverPosition.placement === 'top' ? '6px solid rgba(12, 14, 28, 0.98)' : 'none',
+            borderBottom: popoverPosition.placement === 'bottom' ? '6px solid rgba(12, 14, 28, 0.98)' : 'none',
           }} />
-        </div>
+        </div>,
+        document.body
       )}
     </span>
+  );
+};
+
+const ThinkingIndicator = ({ loadingStage }) => {
+  const stageText = loadingStage || '성찰 대화를 분석하는 중...';
+
+  return (
+    <div className="ai-thinking-panel">
+      <div className="ai-thinking-header">
+        <div className="ai-thinking-orb" aria-hidden="true">
+          <Bot size={16} />
+          <span className="ai-thinking-orb-ring" />
+        </div>
+        <div className="ai-thinking-copy">
+          <span className="ai-thinking-label">AI가 답변을 만들고 있어요</span>
+          <span className="ai-thinking-stage">{stageText}</span>
+        </div>
+        <div className="ai-thinking-dots" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+
+      <div className="ai-thinking-activity" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+        <span />
+        <span />
+      </div>
+
+      <div className="skeleton-container ai-thinking-lines">
+        <div className="skeleton-line" style={{ width: '92%' }} />
+        <div className="skeleton-line" style={{ width: '78%' }} />
+        <div className="skeleton-line" style={{ width: '54%' }} />
+      </div>
+    </div>
   );
 };
 
@@ -290,7 +458,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
           setIsLoading(true);
           setLoadingStage('🔄 과거 성찰 대화 내역을 불러오는 중...');
           
-          const res = await fetch(`http://localhost:8000/api/chat/history/${initialJournal.id}`, {
+          const res = await fetch(apiUrl(`/api/chat/history/${initialJournal.id}`), {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -390,7 +558,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
 
     try {
       // 3. 백엔드 API (SSE) 호출
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(apiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -516,8 +684,9 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
   return (
     <>
       <div className="chat-window-header">
-        <span className="chat-status-indicator">
-          {isLoading ? '● AI 분석가 답변 입력 중...' : '● 성찰 세션 활성화'}
+        <span className={`chat-status-indicator ${isLoading ? 'is-loading' : ''}`}>
+          <span className="chat-status-dot" />
+          {isLoading ? 'AI 분석가가 답변을 구성 중...' : '성찰 세션 활성화'}
         </span>
         {messages.length > 1 && (
           <button 
@@ -570,7 +739,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
                 )}
               </div>
 
-              {/* 학술 신뢰성 보증 배너 */}
+              {/* 학술 근거 안내 배너 */}
               {msg.sources && msg.sources.length > 0 && (
                 <div style={{
                   display: 'flex',
@@ -591,7 +760,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
                     background: '#10b981',
                   }}></span>
                   <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#10b981', letterSpacing: '0.2px' }}>
-                    ✓ 피어 리뷰(Peer-reviewed)를 거친 실증 학술 논문 {msg.sources.length}건 교차 검증 완료
+                    검색된 연구 발췌 {msg.sources.length}건을 근거로 답변을 구성했습니다
                   </span>
                 </div>
               )}
@@ -618,18 +787,8 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
                   <Bot size={18} color="var(--accent-secondary)" />
                 </div>
               </div>
-            <div className="message-bubble typing-indicator-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '20px 24px', flex: 1, minWidth: 0, background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)' }}>
-              <div className="typing-stage-text" style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontStyle: 'normal', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '500' }}>
-                <Loader2 className="animate-spin" size={16} color="var(--accent-secondary)" />
-                {loadingStage || '성찰 대화를 분석하는 중...'}
-              </div>
-              
-              {/* Shimmering Skeleton Wave rows representing AI active cognition */}
-              <div className="skeleton-container" style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '6px', width: '100%' }}>
-                <div className="skeleton-line" style={{ width: '92%', height: '14px', borderRadius: '4px' }}></div>
-                <div className="skeleton-line" style={{ width: '78%', height: '14px', borderRadius: '4px' }}></div>
-                <div className="skeleton-line" style={{ width: '48%', height: '14px', borderRadius: '4px' }}></div>
-              </div>
+            <div className="message-bubble typing-indicator-container" style={{ flex: 1, minWidth: 0 }}>
+              <ThinkingIndicator loadingStage={loadingStage} />
             </div>
           </div>
         )}

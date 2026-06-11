@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Loader2, Award, Calendar, Compass, TrendingUp } from 'lucide-react';
 import MeaningChange from './MeaningChange';
+import { apiUrl } from '../api';
 
 const EMOTION_FILTERS = [
   { key: 'all', label: '전체 은하', emoji: '🌌', color: 'var(--accent-primary)' },
@@ -61,7 +62,7 @@ const MeaningNetwork = ({ token }) => {
   useEffect(() => {
     const fetchValueCards = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/value-cards', {
+        const response = await fetch(apiUrl('/api/value-cards'), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -164,7 +165,7 @@ const MeaningNetwork = ({ token }) => {
 
       nodes.push({
         ...card,
-        groupKey: kw, // canonical 가치(또는 폴백 keyword) — 클러스터·엣지 기준
+        groupKey: kw, // canonical 가치(또는 폴백 keyword) - 클러스터·엣지 기준
         base3D: { x, y, z }, // 초기 3D 원본 좌표
         rotated3D: { x, y, z }, // 회전 후 3D 좌표
         projected2D: { x: 0, y: 0, visible: false }, // 화면에 투영된 2D 좌표
