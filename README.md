@@ -245,6 +245,7 @@ Logos-Log/
 | 문제 해결 | [Wiki](https://github.com/alsrjs951/Logos-Log/wiki/Troubleshooting) |
 | 데모 플레이북 | [project/docs/demo_playbook.md](project/docs/demo_playbook.md) |
 | 발표 스크립트 | [project/docs/presentation_script.md](project/docs/presentation_script.md) |
+| RAG 아키텍처 다이어그램 | [project/docs/rag_architecture_diagram.md](project/docs/rag_architecture_diagram.md) |
 | 기여 가이드 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 행동 강령 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
