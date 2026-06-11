@@ -41,7 +41,7 @@ MONGODB_URI="방금 복사한 연결 문자열"
 
 | 컬렉션 | 용도 | 주요 필드 |
 |--------|------|-----------|
-| `documents` | 논문 임베딩 청크 (RAG) | `content`, `metadata`(author/year/category), `embedding`(1024차원) |
+| `documents` | 논문 임베딩 청크 (RAG) | `content`, `embedding`(1024차원), `chunk_id`, `document_id`, `filename`, `title`, `section`, `page_start`, `page_end`, `chunk_index`, `metadata` |
 | `users` | 사용자 계정 | `email`, `password`(bcrypt 해시), `created_at` |
 | `journals` | 일기 | `title`, `content`, `emotion`, `user_id`, `created_at` |
 | `value_cards` | 아하 모먼트 가치 카드 | `keyword`, `insight`, `emotion`, `user_id`, `created_at` |
@@ -76,7 +76,7 @@ MONGODB_URI="방금 복사한 연결 문자열"
 
 6. **[Create]** 를 눌러 인덱스를 생성합니다. (인덱싱 완료까지 데이터 양에 따라 수 분 소요)
 
-> 백엔드의 검색 파이프라인은 `$vectorSearch`(`index: "vector_index"`, `path: "embedding"`, `numCandidates: 50`, `limit: 8`)를 사용하며, 유사도 점수 0.30 이상 후보만 채택한 뒤 LLM 재랭킹으로 상위 청크를 선별합니다.
+> 백엔드의 프로덕션 검색 파이프라인은 `$vectorSearch`(`index: "vector_index"`, `path: "embedding"`, `numCandidates: 120`, `limit: 15`)를 사용합니다. 이후 temperature 0 재랭커가 최대 4개 primary 청크를 고르고, 답변 생성에는 각 primary 청크의 앞뒤 청크를 함께 넣어 문맥 손실을 줄입니다. `$text`/RRF 하이브리드는 평가 스크립트의 실험 기능으로만 유지하며, 프로덕션 컬렉션에는 텍스트 인덱스를 상시 유지하지 않습니다.
 
 ---
 
