@@ -243,6 +243,7 @@ Logos-Log/
 | Getting Started | [Wiki](https://github.com/alsrjs951/Logos-Log/wiki/Getting-Started) |
 | Development Guide | [Wiki](https://github.com/alsrjs951/Logos-Log/wiki/Development-Guide) |
 | Troubleshooting | [Wiki](https://github.com/alsrjs951/Logos-Log/wiki/Troubleshooting) |
+| Demo Playbook | [project/docs/demo_playbook.md](project/docs/demo_playbook.md) |
 | 기여 가이드 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 행동 강령 | [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) |
 
