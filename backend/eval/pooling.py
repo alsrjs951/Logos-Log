@@ -1,7 +1,7 @@
 """
 후보 풀링 (Pooling) — 검색 정답지(qrels) 구축용.
 
-질문 하나당 9,562개 문서를 모두 채점할 수 없으므로, 서로 다른 검색기(벡터 + 키워드)의
+질문 하나당 수천 개 청크를 모두 채점할 수 없으므로, 서로 다른 검색기(벡터 + 키워드)의
 상위 결과를 합쳐 작은 후보 풀(보통 ~30개)을 만든다. 정답 문서는 거의 다 이 합집합 안에
 들어오므로(TREC pooling), 이 풀만 채점하면 충분하다.
 
@@ -12,12 +12,26 @@ TEXT_INDEX_NAME = "content_text"
 
 
 def ensure_text_index(db):
-    """documents.content 에 키워드 검색용 텍스트 인덱스를 보장(idempotent)."""
+    """실험 평가용 documents.content 텍스트 인덱스를 보장(idempotent)."""
     existing = {ix.get("name") for ix in db.documents.list_indexes()}
     if TEXT_INDEX_NAME in existing:
         return False
     db.documents.create_index([("content", "text")], name=TEXT_INDEX_NAME, default_language="english")
     return True
+
+
+def drop_text_index(db):
+    """평가 후 프로덕션 컬렉션에 실험용 $text 인덱스가 남지 않도록 제거한다."""
+    existing = {ix.get("name") for ix in db.documents.list_indexes()}
+    if TEXT_INDEX_NAME not in existing:
+        return False
+    db.documents.drop_index(TEXT_INDEX_NAME)
+    return True
+
+
+def candidate_id(record: dict) -> str:
+    """DB reset 이후에도 안정적인 chunk_id를 우선 사용한다."""
+    return record.get("chunk_id") or str(record["_id"])
 
 
 def vector_candidates(rag, english_query: str, limit: int = 15) -> list:
@@ -29,11 +43,11 @@ def vector_candidates(rag, english_query: str, limit: int = 15) -> list:
             "index": "vector_index", "path": "embedding",
             "queryVector": emb, "numCandidates": max(100, limit * 8), "limit": limit,
         }},
-        {"$project": {"content": 1, "metadata": 1, "score": {"$meta": "vectorSearchScore"}}},
+        {"$project": {"content": 1, "chunk_id": 1, "metadata": 1, "score": {"$meta": "vectorSearchScore"}}},
     ]
     out = []
     for r in db.documents.aggregate(pipeline):
-        out.append({"id": str(r["_id"]), "content": r.get("content", ""),
+        out.append({"id": candidate_id(r), "content": r.get("content", ""),
                     "metadata": r.get("metadata") or {}, "vector_score": r.get("score")})
     return out
 
@@ -42,12 +56,12 @@ def keyword_candidates(db, query_text: str, limit: int = 15) -> list:
     """$text 키워드 검색으로 broad 후보."""
     cur = (db.documents
            .find({"$text": {"$search": query_text}},
-                 {"content": 1, "metadata": 1, "score": {"$meta": "textScore"}})
+                 {"content": 1, "chunk_id": 1, "metadata": 1, "score": {"$meta": "textScore"}})
            .sort([("score", {"$meta": "textScore"})])
            .limit(limit))
     out = []
     for r in cur:
-        out.append({"id": str(r["_id"]), "content": r.get("content", ""),
+        out.append({"id": candidate_id(r), "content": r.get("content", ""),
                     "metadata": r.get("metadata") or {}, "text_score": r.get("score")})
     return out
 

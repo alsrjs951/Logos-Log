@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Calendar, Award, MessageSquare, Globe, ChevronLeft, ChevronRight, BookOpen, Clock, Activity, Flame, Star } from 'lucide-react';
 import WeeklyReport from './WeeklyReport';
+import { apiUrl } from '../api';
 
 const EMOTION_COLORS = {
   happy:    { color: '#10b981', emoji: '😊', label: '행복',     bg: 'rgba(16, 185, 129, 0.15)' },
@@ -41,7 +42,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       if (!token) return;
       try {
         setIsCardsLoading(true);
-        const cardsRes = await fetch('http://localhost:8000/api/value-cards/count', {
+        const cardsRes = await fetch(apiUrl('/api/value-cards/count'), {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (cardsRes.ok) {
@@ -118,12 +119,15 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
     const month = currentDate.getMonth();
     const totalDays = getDaysInMonth(year, month);
     const firstDay = getFirstDayOfMonth(year, month);
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const cells = [];
     for (let i = 0; i < firstDay; i++) {
       cells.push(<div key={`e-${i}`} className="calendar-cell empty" style={{ opacity: 0.15, cursor: 'default' }} />);
     }
     for (let day = 1; day <= totalDays; day++) {
       const targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const isToday = targetDateStr === todayStr;
       const dayJournals = journals.filter(j => {
         const jd = new Date(j.created_at);
         return `${jd.getFullYear()}-${String(jd.getMonth() + 1).padStart(2, '0')}-${String(jd.getDate()).padStart(2, '0')}` === targetDateStr;
@@ -131,17 +135,20 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       const hasJournal = dayJournals.length > 0;
       const pj = dayJournals[0];
       const em = pj ? EMOTION_COLORS[pj.emotion] : null;
+      const baseBackground = hasJournal ? em.bg : isToday ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)';
+      const baseBorder = hasJournal ? `1px solid ${em.color}55` : isToday ? '1px solid rgba(99,102,241,0.55)' : '1px solid rgba(255,255,255,0.03)';
       cells.push(
         <div
           key={`d-${day}`}
-          className={`calendar-cell ${hasJournal ? 'has-journal' : ''}`}
-          style={{ position: 'relative', background: hasJournal ? em.bg : 'rgba(255,255,255,0.02)', border: hasJournal ? `1px solid ${em.color}35` : '1px solid rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.2s' }}
+          className={`calendar-cell ${hasJournal ? 'has-journal' : ''} ${isToday ? 'is-today' : ''}`}
+          style={{ position: 'relative', background: baseBackground, border: baseBorder, boxShadow: isToday ? 'inset 0 0 0 1px rgba(99,102,241,0.18)' : 'none', cursor: 'pointer', transition: 'all 0.2s' }}
           onClick={() => { if (hasJournal) setSelectedJournal(pj); else if (onNewJournalWithDate) onNewJournalWithDate(targetDateStr); }}
-          title={hasJournal ? `${pj.title} (클릭하여 읽기)` : `${targetDateStr} 일기 쓰기`}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = hasJournal ? em.color : 'rgba(255,255,255,0.2)'; if (!hasJournal) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = hasJournal ? `${em.color}35` : 'rgba(255,255,255,0.03)'; if (!hasJournal) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+          title={isToday ? `오늘 · ${hasJournal ? `${pj.title} (클릭하여 읽기)` : `${targetDateStr} 일기 쓰기`}` : hasJournal ? `${pj.title} (클릭하여 읽기)` : `${targetDateStr} 일기 쓰기`}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.borderColor = hasJournal ? em.color : isToday ? 'rgba(129,140,248,0.75)' : 'rgba(255,255,255,0.2)'; if (!hasJournal) e.currentTarget.style.background = isToday ? 'rgba(99,102,241,0.14)' : 'rgba(255,255,255,0.06)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.border = baseBorder; if (!hasJournal) e.currentTarget.style.background = baseBackground; }}
         >
-          <span className="calendar-day-num" style={{ fontSize: '0.85rem', fontWeight: '500', color: hasJournal ? '#ffffff' : 'var(--text-muted)' }}>{day}</span>
+          <span className="calendar-day-num" style={{ fontSize: '0.85rem', fontWeight: isToday ? '800' : '500', color: hasJournal ? '#ffffff' : isToday ? '#c7d2fe' : 'var(--text-muted)' }}>{day}</span>
+          {isToday && <span className="calendar-today-badge">오늘</span>}
           {hasJournal && <div className="calendar-emotion-emoji" style={{ fontSize: '1.25rem', marginTop: '4px', textAlign: 'center' }}>{em.emoji}</div>}
         </div>
       );
@@ -171,7 +178,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
     <div className="dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto', padding: '10px 5px', scrollbarWidth: 'thin' }}>
 
       {/* 1. 상단 주요 통계 카드 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+      <div className="dashboard-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
 
         {/* Streak 카드 (애니메이션 강화) */}
         <div className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '18px', background: streak >= 3 ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.05)', border: streak >= 3 ? '1px solid rgba(245,158,11,0.25)' : '1px solid rgba(99,102,241,0.15)', transition: 'all 0.5s' }}>
@@ -257,20 +264,20 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       <WeeklyReport token={token} />
 
       {/* 4. 달력 & 감정 통계 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 2fr) minmax(240px, 1fr))', gap: '20px', alignItems: 'start' }}>
+      <div className="dashboard-calendar-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 2fr) minmax(240px, 1fr))', gap: '20px', alignItems: 'start' }}>
 
         {/* 감정 캘린더 */}
-        <div className="glass-panel" style={{ padding: '24px', flex: 2 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div className="glass-panel dashboard-calendar-panel" style={{ padding: '24px', flex: 2 }}>
+          <div className="dashboard-calendar-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Calendar size={18} color="var(--accent-primary)" />
               <h2 style={{ fontSize: '1.05rem', fontWeight: '600' }}>나의 감정 성찰 달력</h2>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="dashboard-calendar-month-controls" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button onClick={handlePrevMonth} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-glass)', borderRadius: '8px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ffffff' }}>
                 <ChevronLeft size={16} />
               </button>
-              <span style={{ fontSize: '0.9rem', fontWeight: '600', minWidth: '85px', textAlign: 'center' }}>
+              <span className="dashboard-calendar-month" style={{ fontSize: '0.9rem', fontWeight: '600', minWidth: '85px', textAlign: 'center' }}>
                 {currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월
               </span>
               <button onClick={handleNextMonth} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border-glass)', borderRadius: '8px', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#ffffff' }}>
@@ -284,7 +291,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
             ))}
             {renderCalendar()}
           </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '16px', justifyContent: 'center', borderTop: '1px solid var(--border-glass)', paddingTop: '14px' }}>
+          <div className="dashboard-emotion-legend" style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '16px', justifyContent: 'center', borderTop: '1px solid var(--border-glass)', paddingTop: '14px' }}>
             {Object.keys(EMOTION_COLORS).map(key => {
               const meta = EMOTION_COLORS[key];
               return (
@@ -298,7 +305,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
         </div>
 
         {/* 감정 분포 통계 */}
-        <div className="glass-panel" style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
+        <div className="glass-panel dashboard-emotion-stats-panel" style={{ padding: '24px', flex: 1, display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Activity size={18} color="var(--accent-secondary)" />
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600' }}>이달의 마음 온도 비율</h2>
@@ -349,7 +356,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
+          <div className="dashboard-recent-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
             {journals.slice(0, 3).map(journal => {
               const meta = EMOTION_COLORS[journal.emotion] || EMOTION_COLORS.happy;
               return (

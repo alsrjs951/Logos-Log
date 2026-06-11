@@ -14,8 +14,19 @@ class ChatRequest(BaseModel):
 class ChatSource(BaseModel):
     id: str
     content: str
+    content_ko: Optional[str] = None
+    summary_ko: Optional[str] = None
     author: Optional[str] = None
     year: Optional[str] = None
+    title: Optional[str] = None
+    filename: Optional[str] = None
+    section: Optional[str] = None
+    page_start: Optional[int] = None
+    page_end: Optional[int] = None
+    chunk_id: Optional[str] = None
+    chunk_index: Optional[int] = None
+    language: Optional[str] = None
+    text_quality: Optional[float] = None
     category: Optional[str] = None
     similarity: float
 

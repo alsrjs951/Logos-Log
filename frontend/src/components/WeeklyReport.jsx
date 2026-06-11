@@ -1,5 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Loader2, Sparkles, RefreshCw, TrendingUp } from 'lucide-react';
+import { apiUrl } from '../api';
+
+const cleanReportText = (value) => {
+  if (!value) return '';
+
+  return String(value)
+    .replace(/[ \t]*[\u2014\u2013\u2015][ \t]*/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
 
 const WeeklyReport = ({ token }) => {
   const [report, setReport] = useState(null);
@@ -12,7 +23,7 @@ const WeeklyReport = ({ token }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://localhost:8000/api/journals/weekly-report', {
+      const res = await fetch(apiUrl('/api/journals/weekly-report'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('리포트를 불러오지 못했습니다.');
@@ -30,35 +41,29 @@ const WeeklyReport = ({ token }) => {
     fetchReport();
   }, [token]);
 
+  const summary = cleanReportText(report?.summary);
+  const nextQuestion = cleanReportText(report?.next_question);
+  const keywords = Array.isArray(report?.keywords)
+    ? report.keywords.map(cleanReportText).filter(Boolean)
+    : [];
+
   return (
     <div
-      className="glass-panel"
+      className="glass-panel weekly-report-panel"
       style={{
         padding: '24px',
         background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(16,185,129,0.05) 100%)',
         border: '1px solid rgba(99,102,241,0.2)',
         position: 'relative',
-        overflow: 'hidden',
+        overflow: 'visible',
+        maxWidth: '100%',
       }}
     >
-      {/* 배경 장식 */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-30px',
-          right: '-30px',
-          width: '120px',
-          height: '120px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-
       {/* 헤더 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="weekly-report-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div className="weekly-report-title-row" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div
+            className="weekly-report-icon"
             style={{
               width: '32px',
               height: '32px',
@@ -71,14 +76,15 @@ const WeeklyReport = ({ token }) => {
           >
             <TrendingUp size={16} color="var(--accent-primary)" />
           </div>
-          <div>
-            <h2 style={{ fontSize: '1rem', fontWeight: '700', margin: 0 }}>이번 주 성찰 리포트</h2>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
+          <div className="weekly-report-title-copy">
+            <h2 className="weekly-report-title" style={{ fontSize: '1rem', fontWeight: '700', margin: 0 }}>이번 주 성찰 리포트</h2>
+            <p className="weekly-report-subtitle" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
               최근 7일간의 기록을 AI가 분석했습니다
             </p>
           </div>
         </div>
         <button
+          className="weekly-report-refresh"
           onClick={fetchReport}
           disabled={isLoading}
           title="리포트 새로고침"
@@ -104,7 +110,7 @@ const WeeklyReport = ({ token }) => {
 
       {/* 콘텐츠 */}
       {isLoading && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '24px 0' }}>
+        <div className="weekly-report-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '24px 0' }}>
           <Loader2 size={28} color="var(--accent-primary)" style={{ animation: 'spin 1s linear infinite' }} />
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
             AI가 이번 주 성찰을 분석하는 중...
@@ -114,6 +120,7 @@ const WeeklyReport = ({ token }) => {
 
       {error && !isLoading && (
         <div
+          className="weekly-report-error"
           style={{
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.2)',
@@ -128,16 +135,17 @@ const WeeklyReport = ({ token }) => {
       )}
 
       {!isLoading && !error && hasLoaded && report && !report.has_data && (
-        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
+        <div className="weekly-report-state" style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
           <p style={{ fontSize: '0.88rem', margin: '0 0 6px 0' }}>이번 주 작성된 일기가 없습니다.</p>
           <p style={{ fontSize: '0.78rem', margin: 0 }}>일기를 작성하면 AI 성찰 리포트가 생성됩니다 ✨</p>
         </div>
       )}
 
       {!isLoading && !error && report && report.has_data && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+        <div className="weekly-report-body" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* 요약 */}
           <div
+            className="weekly-report-section"
             style={{
               background: 'rgba(255,255,255,0.03)',
               borderRadius: '12px',
@@ -154,23 +162,24 @@ const WeeklyReport = ({ token }) => {
                 이번 주 흐름
               </span>
             </div>
-            <p style={{ margin: 0 }}>{report.summary}</p>
+            <p className="weekly-report-text" style={{ margin: 0 }}>{summary}</p>
           </div>
 
           {/* 핵심 가치 키워드 */}
-          {report.keywords && report.keywords.length > 0 && (
-            <div>
+          {keywords.length > 0 && (
+            <div className="weekly-report-keywords-section">
               <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 이번 주 핵심 가치
               </p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {report.keywords.map((kw, i) => {
+              <div className="weekly-report-keywords" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {keywords.map((kw, i) => {
                   const colors = ['rgba(99,102,241,0.2)', 'rgba(16,185,129,0.18)', 'rgba(236,72,153,0.18)'];
                   const borders = ['rgba(99,102,241,0.4)', 'rgba(16,185,129,0.4)', 'rgba(236,72,153,0.4)'];
                   const textColors = ['#a5b4fc', '#6ee7b7', '#f9a8d4'];
                   return (
                     <span
                       key={i}
+                      className="weekly-report-keyword"
                       style={{
                         padding: '6px 14px',
                         borderRadius: '100px',
@@ -191,8 +200,9 @@ const WeeklyReport = ({ token }) => {
           )}
 
           {/* 추천 질문 */}
-          {report.next_question && (
+          {nextQuestion && (
             <div
+              className="weekly-report-section"
               style={{
                 background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(16,185,129,0.08))',
                 border: '1px solid rgba(99,102,241,0.25)',
@@ -203,13 +213,13 @@ const WeeklyReport = ({ token }) => {
               <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--accent-primary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 🔍 다음 주 탐구 질문
               </p>
-              <p style={{ margin: 0, fontSize: '0.88rem', color: '#e2e8f0', lineHeight: '1.6', fontStyle: 'italic' }}>
-                "{report.next_question}"
+              <p className="weekly-report-text" style={{ margin: 0, fontSize: '0.88rem', color: '#e2e8f0', lineHeight: '1.6', fontStyle: 'italic' }}>
+                "{nextQuestion}"
               </p>
             </div>
           )}
 
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, textAlign: 'right' }}>
+          <p className="weekly-report-footnote" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, textAlign: 'right' }}>
             이번 주 일기 {report.journal_count}편 기반
           </p>
         </div>

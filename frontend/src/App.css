@@ -710,9 +710,204 @@
   width: 100%;
 }
 
+/* Dashboard narrow-width safeguards */
+.dashboard-container {
+  overflow-x: hidden;
+}
 
+.dashboard-container,
+.dashboard-container * {
+  min-width: 0;
+}
 
+.dashboard-container > * {
+  flex-shrink: 0;
+}
 
+.dashboard-stats-grid,
+.dashboard-calendar-stats-grid,
+.dashboard-recent-grid,
+.dashboard-container .glass-panel {
+  max-width: 100%;
+}
 
+.calendar-cell {
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px;
+}
 
+.calendar-today-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 1px 5px 2px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(165, 180, 252, 0.28);
+  color: #c7d2fe;
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .dashboard-calendar-stats-grid,
+  .dashboard-recent-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-calendar-panel,
+  .dashboard-emotion-stats-panel {
+    padding: 18px !important;
+  }
+
+  .dashboard-calendar-header {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dashboard-calendar-month-controls {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px !important;
+  }
+
+  .dashboard-calendar-month {
+    flex: 1 1 auto;
+    min-width: 0 !important;
+  }
+
+  .calendar-grid {
+    gap: 5px !important;
+  }
+
+  .calendar-today-badge {
+    padding: 1px 4px 2px;
+    font-size: 0.54rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .dashboard-container {
+    gap: 18px !important;
+    padding: 8px 4px !important;
+  }
+
+  .dashboard-stats-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .dashboard-calendar-panel,
+  .dashboard-emotion-stats-panel {
+    padding: 16px !important;
+  }
+
+  .calendar-grid {
+    gap: 4px !important;
+  }
+}
+
+/* Weekly reflection report */
+.weekly-report-panel {
+  isolation: isolate;
+}
+
+.weekly-report-panel,
+.weekly-report-panel * {
+  min-width: 0;
+}
+
+.weekly-report-header,
+.weekly-report-state,
+.weekly-report-error,
+.weekly-report-body {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+
+.weekly-report-header {
+  gap: 12px;
+}
+
+.weekly-report-title-row {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.weekly-report-icon,
+.weekly-report-refresh {
+  flex: 0 0 auto;
+}
+
+.weekly-report-title-copy {
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+.weekly-report-title,
+.weekly-report-subtitle,
+.weekly-report-text,
+.weekly-report-footnote {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.weekly-report-section,
+.weekly-report-keywords-section,
+.weekly-report-keywords {
+  max-width: 100%;
+}
+
+.weekly-report-keyword {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .weekly-report-panel {
+    padding: 20px !important;
+  }
+
+  .weekly-report-header {
+    align-items: flex-start !important;
+  }
+
+  .weekly-report-title-row {
+    align-items: flex-start !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .weekly-report-panel {
+    padding: 18px !important;
+  }
+
+  .weekly-report-title {
+    font-size: 0.95rem !important;
+  }
+
+  .weekly-report-subtitle {
+    font-size: 0.68rem !important;
+    line-height: 1.45;
+  }
+
+  .weekly-report-section {
+    padding: 14px !important;
+  }
+}
 

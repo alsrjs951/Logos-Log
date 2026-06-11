@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2, Award, Calendar, Compass, TrendingUp } from 'lucide-react';
 import MeaningChange from './MeaningChange';
+import { apiUrl } from '../api';
 
 const EMOTION_FILTERS = [
   { key: 'all', label: '전체 은하', emoji: '🌌', color: 'var(--accent-primary)' },
@@ -61,7 +62,7 @@ const MeaningNetwork = ({ token }) => {
   useEffect(() => {
     const fetchValueCards = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/value-cards', {
+        const response = await fetch(apiUrl('/api/value-cards'), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -164,7 +165,7 @@ const MeaningNetwork = ({ token }) => {
 
       nodes.push({
         ...card,
-        groupKey: kw, // canonical 가치(또는 폴백 keyword) — 클러스터·엣지 기준
+        groupKey: kw, // canonical 가치(또는 폴백 keyword) - 클러스터·엣지 기준
         base3D: { x, y, z }, // 초기 3D 원본 좌표
         rotated3D: { x, y, z }, // 회전 후 3D 좌표
         projected2D: { x: 0, y: 0, visible: false }, // 화면에 투영된 2D 좌표
@@ -332,9 +333,6 @@ const MeaningNetwork = ({ token }) => {
         const radius = baseRadius * scale;
         const depthOpacity = Math.max(0.2, Math.min(1.0, 1 - (node.rotated3D.z + 100) / 400));
         const finalOpacity = depthOpacity * node.filterAlpha;
-
-        // 필터링에서 제외되고 호버되지 않은 노드는 클릭 차단
-        const isInteractive = currentFilter === 'all' || node.emotion === currentFilter || isHovered;
 
         // 4-1. 선택/호버 시 네온 빛 후광 글로우 효과 (Canvas shadow 기능 사용)
         if ((isSelected || isHovered) && node.filterAlpha > 0.3) {
@@ -506,7 +504,7 @@ const MeaningNetwork = ({ token }) => {
     try {
       const date = new Date(dateString);
       return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
-    } catch (e) {
+    } catch {
       return dateString;
     }
   };
@@ -673,15 +671,13 @@ const MeaningNetwork = ({ token }) => {
 
   const drawStar = (ctx, cx, cy, spikes, outerRadius, innerRadius) => {
     let rot = Math.PI / 2 * 3;
-    let x = cx;
-    let y = cy;
-    let step = Math.PI / spikes;
+    const step = Math.PI / spikes;
 
     ctx.beginPath();
     ctx.moveTo(cx, cy - outerRadius);
     for (let i = 0; i < spikes; i++) {
-      x = cx + Math.cos(rot) * outerRadius;
-      y = cy + Math.sin(rot) * outerRadius;
+      let x = cx + Math.cos(rot) * outerRadius;
+      let y = cy + Math.sin(rot) * outerRadius;
       ctx.lineTo(x, y);
       rot += step;
 

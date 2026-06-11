@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ShieldAlert, Check, X, Loader2 } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -178,15 +179,13 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
 
   const drawStar = (ctx, cx, cy, spikes, outerRadius, innerRadius) => {
     let rot = Math.PI / 2 * 3;
-    let x = cx;
-    let y = cy;
-    let step = Math.PI / spikes;
+    const step = Math.PI / spikes;
 
     ctx.beginPath();
     ctx.moveTo(cx, cy - outerRadius);
     for (let i = 0; i < spikes; i++) {
-      x = cx + Math.cos(rot) * outerRadius;
-      y = cy + Math.sin(rot) * outerRadius;
+      let x = cx + Math.cos(rot) * outerRadius;
+      let y = cy + Math.sin(rot) * outerRadius;
       ctx.lineTo(x, y);
       rot += step;
 
@@ -240,7 +239,7 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
       }
 
       try {
-        const response = await fetch('http://localhost:8000/api/value-cards/extract', {
+        const response = await fetch(apiUrl('/api/value-cards/extract'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -275,7 +274,7 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
 
     setIsSaving(true);
     try {
-      const response = await fetch('http://localhost:8000/api/value-cards', {
+      const response = await fetch(apiUrl('/api/value-cards'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -303,12 +302,12 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
     }
   };
 
-  // 깨달음을 행동으로: 저장된 카드에 다짐 연결 (선택 — 강요하지 않음)
+  // 깨달음을 행동으로: 저장된 카드에 다짐 연결 (선택 - 강요하지 않음)
   const handleSaveIntention = async () => {
     if (!savedCardId || !intentionText.trim()) return;
     setIntentionSaving(true);
     try {
-      const response = await fetch('http://localhost:8000/api/intentions', {
+      const response = await fetch(apiUrl('/api/intentions'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -346,7 +345,7 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
               핵심 가치 키워드 <strong style={{ color: 'var(--accent-secondary)' }}>'{keyword}'</strong>가 나만의 성찰 은하에 노드로 훌륭히 매핑되었습니다.
             </p>
 
-            {/* 깨달음을 행동으로 — 선택적 다짐(insight→action 루프) */}
+            {/* 깨달음을 행동으로 - 선택적 다짐(insight→action 루프) */}
             <div style={{ width: '100%', maxWidth: '420px', marginTop: '6px', padding: '16px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)', textAlign: 'left' }}>
               {intentionSaved ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-main)' }}>

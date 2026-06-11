@@ -1,6 +1,3 @@
-
-
-import React from 'react';
 import { Trash2 } from 'lucide-react';
 
 const EMOTION_MAP = {
@@ -16,7 +13,7 @@ const JournalList = ({ journals, onSelectJournal, onDeleteJournal, activeJournal
     try {
       const date = new Date(dateString);
       return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-    } catch (e) {
+    } catch {
       return dateString;
     }
   };
@@ -103,4 +100,3 @@ const JournalList = ({ journals, onSelectJournal, onDeleteJournal, activeJournal
 };
 
 export default JournalList;
-

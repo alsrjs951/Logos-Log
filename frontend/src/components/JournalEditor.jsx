@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Sparkles } from 'lucide-react';
+import { apiUrl } from '../api';
 
 const EMOTIONS = [
   { key: 'happy', label: '행복', emoji: '😊' },
@@ -45,7 +46,7 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
       const isoDateTime = new Date(`${selectedDate}T12:00:00`).toISOString();
 
       // 1. 일기를 Supabase 백엔드에 저장 (인증 토큰 동반)
-      const response = await fetch('http://localhost:8000/api/journals', {
+      const response = await fetch(apiUrl('/api/journals'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

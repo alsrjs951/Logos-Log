@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Loader2, ArrowRight, Sparkles, Info } from 'lucide-react';
 import IntentionReview from './IntentionReview';
+import { apiUrl } from '../api';
 
 // Schwartz circumplex 4상위차원 → 색상(가치 색의 가족)
 const HIGHER_ORDER_COLORS = {
-  openness_to_change: '#6366f1', // Indigo — 변화 개방
-  self_enhancement: '#f59e0b',   // Amber — 자기 고양
-  conservation: '#06b6d4',       // Cyan — 보존
-  self_transcendence: '#10b981', // Emerald — 자기 초월
+  openness_to_change: '#6366f1', // Indigo - 변화 개방
+  self_enhancement: '#f59e0b',   // Amber - 자기 고양
+  conservation: '#06b6d4',       // Cyan - 보존
+  self_transcendence: '#10b981', // Emerald - 자기 초월
 };
 const FALLBACK_COLOR = '#64748b';
 
 /**
- * 의미 네트워크의 "변화(Change)" 뷰 — 종단적 도구의 핵심.
+ * 의미 네트워크의 "변화(Change)" 뷰 - 종단적 도구의 핵심.
  * 가치카드의 canonical 분포가 시간축으로 어떻게 이동했는지(then-vs-now, 월별 추이)를
  * 보여준다. 데이터가 부족하거나 변화가 미미하면 단언하지 않는다(과잉 정밀 방지).
  */
@@ -26,10 +27,10 @@ const MeaningChange = ({ token }) => {
     const load = async () => {
       try {
         const [trendsRes, taxRes] = await Promise.all([
-          fetch('http://localhost:8000/api/value-cards/trends', {
+          fetch(apiUrl('/api/value-cards/trends'), {
             headers: { Authorization: `Bearer ${token}` },
           }),
-          fetch('http://localhost:8000/api/value-cards/taxonomy'),
+          fetch(apiUrl('/api/value-cards/taxonomy')),
         ]);
         if (!trendsRes.ok) throw new Error('추세 데이터를 불러오지 못했습니다.');
         const trendsData = await trendsRes.json();
@@ -74,7 +75,7 @@ const MeaningChange = ({ token }) => {
 
   return (
     <div className="meaning-change" style={{ padding: '8px 4px', maxWidth: '880px', margin: '0 auto' }}>
-      {/* 돌아볼 다짐 (pull 재질문) — 있을 때만 표시 */}
+      {/* 돌아볼 다짐 (pull 재질문) - 있을 때만 표시 */}
       <IntentionReview token={token} />
 
       {/* 정직한 요약 한 문장 */}
@@ -92,7 +93,7 @@ const MeaningChange = ({ token }) => {
         </p>
       </div>
 
-      {/* 데이터 부족 상태 — 정직하게, engagement 압박 없이 */}
+      {/* 데이터 부족 상태 - 정직하게, engagement 압박 없이 */}
       {trends.insufficient ? (
         <InsufficientPanel trends={trends} />
       ) : (
@@ -160,7 +161,7 @@ const InsufficientPanel = ({ trends }) => {
       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, margin: '0 auto 18px', maxWidth: '440px' }}>
         지금까지 분류된 가치 카드는 <strong>{trends.mapped_cards}개</strong>입니다.
         의미 있는 변화 추이를 정직하게 그리려면 최소 <strong>{trends.min_cards}개</strong>가
-        여러 시기에 걸쳐 쌓여야 합니다. 서두를 필요는 없어요 — 성찰이 모일 때 다시 들러보세요.
+        여러 시기에 걸쳐 쌓여야 합니다. 서두를 필요는 없어요. 성찰이 모일 때 다시 들러보세요.
       </p>
       <div style={{ height: '8px', borderRadius: '999px', background: 'rgba(255,255,255,0.08)', overflow: 'hidden', maxWidth: '320px', margin: '0 auto' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-gradient, #6366f1)', transition: 'width 0.4s' }} />
@@ -186,11 +187,11 @@ const ThenVsNow = ({ tvn, label, color }) => {
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>예전 ({then.count})</div>
         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>지금 ({now.count})</div>
         {keys.map((k) => (
-          <React.Fragment key={k}>
+          <Fragment key={k}>
             <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', textAlign: 'right', fontWeight: 600 }}>{label(k)}</div>
             <Bar pct={(then.distribution[k] || 0) * 100} c={color(k)} />
             <Bar pct={(now.distribution[k] || 0) * 100} c={color(k)} />
-          </React.Fragment>
+          </Fragment>
         ))}
       </div>
     </div>

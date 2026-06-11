@@ -54,7 +54,7 @@ def _parse_sse(line: str):
 
 async def _run_case(rag, question: str, is_journal: bool):
     """질문 하나를 프로덕션 스트리밍 경로로 실행해 (contexts, answer) 수집."""
-    contexts, answer = [], ""
+    source_contexts, answer = [], ""
     async for evt in rag.get_streaming_response(
         query=question, history=[], is_journal=is_journal, journal_id=None, user_id=None
     ):
@@ -63,10 +63,12 @@ async def _run_case(rag, question: str, is_journal: bool):
             continue
         ptype = payload.get("type")
         if ptype == "sources":
-            contexts = [s.get("content", "") for s in payload.get("data", []) if s.get("content")]
+            source_contexts = [s.get("content", "") for s in payload.get("data", []) if s.get("content")]
         elif ptype == "chunk":
             answer += payload.get("data", "")
-    return contexts, answer
+    trace = getattr(rag, "last_generation_trace", {}) or {}
+    generation_contexts = [ctx for ctx in trace.get("expanded_contexts", []) if ctx]
+    return generation_contexts or source_contexts, answer, trace, source_contexts
 
 
 # ---------------------------------------------------------------------------
@@ -154,27 +156,142 @@ async def _score_case(judge, row: dict) -> dict:
     }
 
 
-async def _collect(cases):
+def _timeout_score(row: dict, reason: str) -> dict:
+    return {
+        "id": row.get("id"), "category": row.get("category"),
+        "n_contexts": len(row.get("contexts") or []),
+        "answer_len": len(row.get("answer") or ""),
+        "faithfulness": 0.0,
+        "answer_relevancy": None,
+        "context_precision": 0.0,
+        "context_recall": 0.0,
+        "error": reason,
+    }
+
+
+def _save_partial(path: str, rows: list, scores: list):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"rows": rows, "cases": scores}, f, ensure_ascii=False, indent=2)
+
+
+async def _collect(cases, partial_path: str = None, case_timeout: int = 180, judge_timeout: int = 120):
     from services.rag_service import RAGService  # 무거운 import — 실행 시점에만
     rag = RAGService()
     judge = _make_judge()
     rows, scores = [], []
     for c in cases:
-        contexts, answer = await _run_case(rag, c["question"], bool(c.get("is_journal")))
+        try:
+            contexts, answer, trace, source_contexts = await asyncio.wait_for(
+                _run_case(rag, c["question"], bool(c.get("is_journal"))),
+                timeout=case_timeout,
+            )
+        except asyncio.TimeoutError:
+            contexts, answer, trace, source_contexts = [], "", {}, []
+            print(f"  · [{c['id']}] generation timeout after {case_timeout}s", flush=True)
+
         row = {
             "id": c["id"], "category": c.get("category", ""),
             "question": c["question"], "answer": answer, "contexts": contexts,
+            "source_contexts": source_contexts,
+            "trace": trace,
             "ground_truth": " ".join(c.get("reference_points", [])),
         }
         rows.append(row)
-        print(f"  · [{c['id']}] contexts={len(contexts)} answer_len={len(answer)} — judging...", flush=True)
-        scores.append(await _score_case(judge, row))
+        print(f"  · [{c['id']}] contexts={len(contexts)} answer_len={len(answer)} - judging...", flush=True)
+        try:
+            score = await asyncio.wait_for(_score_case(judge, row), timeout=judge_timeout)
+        except asyncio.TimeoutError:
+            print(f"    [judge timeout] {c['id']} after {judge_timeout}s", flush=True)
+            score = _timeout_score(row, f"judge timeout after {judge_timeout}s")
+        scores.append(score)
+        if partial_path:
+            _save_partial(partial_path, rows, scores)
     return rows, scores
 
 
 def _avg(vals):
     vals = [v for v in vals if isinstance(v, (int, float))]
     return sum(vals) / len(vals) if vals else None
+
+
+def _build_diagnostics(scores: list[dict], targets: dict) -> dict:
+    diagnostics = {
+        "low_cases": [],
+        "retrieval_review_cases": [],
+        "faithfulness_review_cases": [],
+        "answer_content_cases": [],
+    }
+    faith_target = targets.get("faithfulness", 0.90)
+    cp_target = targets.get("context_precision", 0.80)
+    cr_target = targets.get("context_recall", 0.75)
+    relev_target = targets.get("answer_relevancy", 0.85)
+
+    for score in scores:
+        metric_values = {
+            "context_precision": score.get("context_precision"),
+            "context_recall": score.get("context_recall"),
+            "faithfulness": score.get("faithfulness"),
+            "answer_relevancy": score.get("answer_relevancy"),
+        }
+        failures = []
+        for key, target in (
+            ("context_precision", cp_target),
+            ("context_recall", cr_target),
+            ("faithfulness", faith_target),
+            ("answer_relevancy", relev_target),
+        ):
+            value = metric_values.get(key)
+            if isinstance(value, (int, float)) and value < target:
+                failures.append({"metric": key, "value": value, "target": target})
+
+        if failures:
+            diagnostics["low_cases"].append({
+                "id": score.get("id"),
+                "category": score.get("category"),
+                "failures": failures,
+                "metrics": {
+                    **metric_values,
+                    "claim_support": score.get("claim_support"),
+                },
+            })
+
+        cp = score.get("context_precision")
+        cr = score.get("context_recall")
+        if (
+            (isinstance(cp, (int, float)) and cp < cp_target)
+            or (isinstance(cr, (int, float)) and cr < cr_target)
+        ):
+            diagnostics["retrieval_review_cases"].append(score.get("id"))
+
+        faith = score.get("faithfulness")
+        claim_support = score.get("claim_support")
+        if isinstance(faith, (int, float)) and faith < faith_target:
+            if isinstance(claim_support, (int, float)) and (
+                claim_support >= 0.85 or claim_support - faith >= 0.15
+            ):
+                diagnostics["faithfulness_review_cases"].append({
+                    "id": score.get("id"),
+                    "faithfulness": faith,
+                    "claim_support": claim_support,
+                    "reason": "holistic_faithfulness_low_but_claim_support_high",
+                })
+            else:
+                diagnostics["answer_content_cases"].append({
+                    "id": score.get("id"),
+                    "faithfulness": faith,
+                    "claim_support": claim_support,
+                    "reason": "low_faithfulness_without_high_claim_support",
+                })
+
+    diagnostics["low_cases"].sort(
+        key=lambda item: (
+            len(item["failures"]),
+            max((failure["target"] - failure["value"] for failure in item["failures"]), default=0),
+        ),
+        reverse=True,
+    )
+    diagnostics["retrieval_review_cases"] = sorted(set(filter(None, diagnostics["retrieval_review_cases"])))
+    return diagnostics
 
 
 def main():
@@ -184,20 +301,97 @@ def main():
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None, help="앞 N개 문항만 평가")
+    ap.add_argument("--case-id", default=None, help="쉼표로 구분한 특정 케이스 ID만 평가 (예: g05,g09,g16)")
+    ap.add_argument("--case-timeout", type=int, default=180, help="문항별 생성 타임아웃(초)")
+    ap.add_argument("--judge-timeout", type=int, default=120, help="문항별 LLM-judge 타임아웃(초)")
+    ap.add_argument(
+        "--verifier-mode",
+        default=None,
+        help="RAG answer verifier mode override (예: on/off). 지정하면 RAG_VERIFIER_MODE 환경변수를 덮어씁니다.",
+    )
+    ap.add_argument(
+        "--claim-checker-mode",
+        default=None,
+        help="Sentence-level claim checker override (예: on/off). 지정하면 RAG_CLAIM_CHECKER_MODE 환경변수를 덮어씁니다.",
+    )
+    ap.add_argument(
+        "--claim-support-mode",
+        default="off",
+        help="Optional eval-only sentence claim support metric (on/off). 기본값 off.",
+    )
+    ap.add_argument(
+        "--claim-support-timeout",
+        type=int,
+        default=60,
+        help="claim support judge timeout per sentence (seconds)",
+    )
+    ap.add_argument(
+        "--answer-template-mode",
+        default=None,
+        help="Answer template override (예: standard/sentence). 지정하면 RAG_ANSWER_TEMPLATE_MODE 환경변수를 덮어씁니다.",
+    )
     args = ap.parse_args()
+    if args.verifier_mode is not None:
+        os.environ["RAG_VERIFIER_MODE"] = args.verifier_mode
+    if args.claim_checker_mode is not None:
+        os.environ["RAG_CLAIM_CHECKER_MODE"] = args.claim_checker_mode
+    if args.answer_template_mode is not None:
+        os.environ["RAG_ANSWER_TEMPLATE_MODE"] = args.answer_template_mode
 
     with open(GOLDEN_PATH, "r", encoding="utf-8") as f:
         golden = json.load(f)
     cases = golden.get("cases", [])
+    if args.case_id:
+        selected = {case_id.strip() for case_id in args.case_id.split(",") if case_id.strip()}
+        cases = [case for case in cases if case.get("id") in selected]
     if args.limit:
         cases = cases[:args.limit]
     targets = golden.get("metric_targets", {})
 
     print("=" * 60)
-    print(f"  RAG 품질 평가 (LLM-judge) — 골든셋 {len(cases)}개 케이스")
+    print(f"  RAG 품질 평가 (LLM-judge) - 골든셋 {len(cases)}개 케이스")
+    print(f"  verifier_mode={os.getenv('RAG_VERIFIER_MODE', 'off')}")
+    print(f"  claim_checker_mode={os.getenv('RAG_CLAIM_CHECKER_MODE', 'off')}")
+    print(f"  claim_support_mode={args.claim_support_mode}")
+    print(f"  answer_template_mode={os.getenv('RAG_ANSWER_TEMPLATE_MODE', 'standard')}")
     print("=" * 60)
 
-    rows, scores = asyncio.run(_collect(cases))
+    os.makedirs(RUNS_DIR, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    partial_out = os.path.join(RUNS_DIR, f"in_progress_{ts}.json")
+    rows, scores = asyncio.run(
+        _collect(
+            cases,
+            partial_path=partial_out,
+            case_timeout=args.case_timeout,
+            judge_timeout=args.judge_timeout,
+        )
+    )
+
+    claim_support_report = None
+    if str(args.claim_support_mode).strip().lower() in {"1", "true", "on", "yes"}:
+        print("\n  claim-support 보조 지표 산출 중...", flush=True)
+        import analyze_claim_support
+
+        claim_support_report = asyncio.run(
+            analyze_claim_support.analyze(
+                {"rows": rows, "cases": scores},
+                [score["id"] for score in scores],
+                timeout=args.claim_support_timeout,
+            )
+        )
+        claim_by_id = {case["id"]: case for case in claim_support_report.get("cases", [])}
+        for score in scores:
+            support_case = claim_by_id.get(score["id"])
+            if support_case:
+                score["claim_support"] = support_case.get("sentence_support_avg")
+        for row in rows:
+            support_case = claim_by_id.get(row["id"])
+            if support_case:
+                row["claim_support"] = {
+                    "sentence_support_avg": support_case.get("sentence_support_avg"),
+                    "sentences": support_case.get("sentences", []),
+                }
 
     metrics = {
         "context_precision": targets.get("context_precision", 0.80),
@@ -211,28 +405,60 @@ def main():
               f"faith={_fmt(s['faithfulness'])} relev={_fmt(s['answer_relevancy'])} "
               f"cprec={_fmt(s['context_precision'])} crec={_fmt(s['context_recall'])} (ctx={s['n_contexts']})")
 
-    print("\n  평균 (목표 / PRD §6.2):")
+    print("\n  평균 (목표 / PRD 6.2):")
     summary, all_pass = {}, True
     for key, target in metrics.items():
         avg = _avg([s[key] for s in scores])
         summary[key] = avg
         if avg is None:
-            print(f"    - {key:18s}:   N/A   (목표 ≥ {target})")
+            print(f"    - {key:18s}:   N/A   (목표 >= {target})")
             continue
         ok = avg >= target
         all_pass = all_pass and ok
-        print(f"    - {key:18s}: {avg:.3f} {'✅' if ok else '❌'} (목표 ≥ {target})")
+        print(f"    - {key:18s}: {avg:.3f} {'[PASS]' if ok else '[FAIL]'} (목표 >= {target})")
+
+    if any("claim_support" in score for score in scores):
+        avg = _avg([score.get("claim_support") for score in scores])
+        summary["claim_support"] = avg
+        print(f"    - {'claim_support':18s}: {avg:.3f} [INFO] (보조 지표, 목표 없음)")
+
+    diagnostics = _build_diagnostics(scores, metrics)
+    if diagnostics["low_cases"]:
+        print("\n  낮은 케이스 / review 후보:")
+        for item in diagnostics["low_cases"][:10]:
+            failed = ", ".join(f"{failure['metric']}={failure['value']:.2f}" for failure in item["failures"])
+            print(f"    - [{item['id']}] {failed}")
+    if diagnostics["faithfulness_review_cases"]:
+        ids = ", ".join(item["id"] for item in diagnostics["faithfulness_review_cases"])
+        print(f"  judge/reference review 후보: {ids}")
+    if diagnostics["answer_content_cases"]:
+        ids = ", ".join(item["id"] for item in diagnostics["answer_content_cases"])
+        print(f"  답변 내용 개선 후보: {ids}")
+    if diagnostics["retrieval_review_cases"]:
+        print(f"  검색/qrels review 후보: {', '.join(diagnostics['retrieval_review_cases'])}")
 
     # 결과 저장 (재현/추적용)
-    os.makedirs(RUNS_DIR, exist_ok=True)
-    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     out = os.path.join(RUNS_DIR, f"baseline_{ts}.json")
     with open(out, "w", encoding="utf-8") as f:
-        json.dump({"summary": summary, "targets": metrics, "cases": scores, "rows": rows},
+        json.dump({
+            "summary": summary,
+            "targets": metrics,
+            "diagnostics": diagnostics,
+            "settings": {
+                "reranker_mode": os.getenv("RERANKER_MODE", "llm"),
+                "verifier_mode": os.getenv("RAG_VERIFIER_MODE", "off"),
+                "claim_checker_mode": os.getenv("RAG_CLAIM_CHECKER_MODE", "off"),
+                "claim_support_mode": args.claim_support_mode,
+                "answer_template_mode": os.getenv("RAG_ANSWER_TEMPLATE_MODE", "standard"),
+            },
+            "claim_support": claim_support_report,
+            "cases": scores,
+            "rows": rows,
+        },
                   f, ensure_ascii=False, indent=2)
 
     print(f"\n  결과 저장: {os.path.relpath(out, BACKEND_DIR)}")
-    print("  " + ("✅ PASS" if all_pass else "❌ FAIL — 일부 지표 목표 미달 (베이스라인)"))
+    print("  " + ("PASS" if all_pass else "FAIL - 일부 지표 목표 미달 (베이스라인)"))
     print("=" * 60)
     sys.exit(0 if all_pass else 1)
 
