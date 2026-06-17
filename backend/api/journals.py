@@ -5,6 +5,7 @@ from typing import List
 from models.journals import JournalCreate, JournalResponse
 from api.deps import get_current_user
 from services.encryption import encrypt, decrypt
+from services.observability import log_event, safe_hash
 from db import get_db
 
 router = APIRouter()
@@ -44,7 +45,7 @@ async def create_journal(journal: JournalCreate, current_user: dict = Depends(ge
         
         return serialize_journal(data)
     except Exception as e:
-        print(f"[journals] DB error: {e}", flush=True)
+        log_event("journal_create_db_error", level="error", user_hash=safe_hash(user_id), error_type=type(e).__name__)
         raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/journals", response_model=List[JournalResponse])
@@ -57,7 +58,7 @@ async def get_journals(current_user: dict = Depends(get_current_user)):
         journals = [serialize_journal(doc) for doc in cursor]
         return journals
     except Exception as e:
-        print(f"[journals] DB error: {e}", flush=True)
+        log_event("journal_list_db_error", level="error", user_hash=safe_hash(user_id), error_type=type(e).__name__)
         raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.get("/journals/summary")
@@ -81,7 +82,7 @@ async def get_journals_summary(current_user: dict = Depends(get_current_user)):
             })
         return summaries
     except Exception as e:
-        print(f"[journals] DB error: {e}", flush=True)
+        log_event("journal_summary_db_error", level="error", user_hash=safe_hash(user_id), error_type=type(e).__name__)
         raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
 
 @router.delete("/journals/{journal_id}")
@@ -96,22 +97,25 @@ async def delete_journal(journal_id: str, current_user: dict = Depends(get_curre
             raise HTTPException(status_code=400, detail="유효하지 않은 일기 ID 포맷입니다.")
             
         # 1. 일기 조회 및 소유권 확인
-        journal = db.journals.find_one({"_id": journal_oid})
+        journal = db.journals.find_one({"_id": journal_oid, "user_id": user_id})
         if not journal:
             raise HTTPException(status_code=404, detail="해당 일기를 찾을 수 없습니다.")
-        if journal.get("user_id") != user_id:
-            raise HTTPException(status_code=403, detail="해당 일기를 삭제할 권한이 없습니다.")
             
         # 2. 일기 삭제
-        db.journals.delete_one({"_id": journal_oid})
+        db.journals.delete_one({"_id": journal_oid, "user_id": user_id})
         
         # 3. 해당 일기에 속한 모든 chat_messages 캐시(대화 기록) 연쇄 삭제
-        db.chat_messages.delete_many({"journal_id": journal_id})
+        db.chat_messages.delete_many({"journal_id": journal_id, "user_id": user_id})
         
         return {"status": "success", "message": "일기 및 대화 내역이 연쇄 삭제되었습니다."}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[journals] DB error: {e}", flush=True)
+        log_event(
+            "journal_delete_db_error",
+            level="error",
+            user_hash=safe_hash(user_id),
+            journal_hash=safe_hash(journal_id),
+            error_type=type(e).__name__,
+        )
         raise HTTPException(status_code=500, detail="데이터베이스 처리 중 오류가 발생했습니다.")
-

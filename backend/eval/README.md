@@ -24,6 +24,22 @@ python eval/evaluate_crisis.py
 
 ---
 
+## Tier 1.5 — 작은 실험 추천 품질 평가 (인프라 불필요)
+
+의미 행동 루프의 추천 문구가 제품 원칙을 지키는지 확인합니다. LLM·DB 없이 고정 세트를 채점하며,
+같은 스키마의 생성 결과 파일을 `--input`으로 넘기면 실제 추천 결과도 동일한 루브릭으로 점검할 수 있습니다.
+
+```bash
+cd backend
+python eval/evaluate_experiment_recommendations.py
+```
+
+- 데이터셋: [`experiment_recommendation_set.json`](./experiment_recommendation_set.json)
+- 루브릭: 필수 필드, 구체적 행동, 이번 주 범위, 낮은 압박, 가치 카드 근거, 회고 질문, 임상/단정 표현 회피
+- 모든 케이스가 `0.86` 이상이면 PASS, 아니면 종료 코드 1
+
+---
+
 ## Tier 2 — RAG 품질 평가 (MongoDB + OpenAI 필요)
 
 검색·답변 품질(Context Precision/Recall, Faithfulness, Answer Relevancy)을 측정합니다.

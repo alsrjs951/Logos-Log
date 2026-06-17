@@ -1,7 +1,8 @@
 import { Fragment, useState, useEffect } from 'react';
 import { Loader2, ArrowRight, Sparkles, Info } from 'lucide-react';
 import IntentionReview from './IntentionReview';
-import { apiUrl } from '../api';
+import { fetchApi, fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 // Schwartz circumplex 4상위차원 → 색상(가치 색의 가족)
 const HIGHER_ORDER_COLORS = {
@@ -27,20 +28,19 @@ const MeaningChange = ({ token }) => {
     const load = async () => {
       try {
         const [trendsRes, taxRes] = await Promise.all([
-          fetch(apiUrl('/api/value-cards/trends'), {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          fetch(apiUrl('/api/value-cards/taxonomy')),
+          fetchWithAuth('/api/value-cards/trends', { token }),
+          fetchApi('/api/value-cards/taxonomy'),
         ]);
-        if (!trendsRes.ok) throw new Error('추세 데이터를 불러오지 못했습니다.');
-        const trendsData = await trendsRes.json();
-        const taxData = taxRes.ok ? await taxRes.json() : { values: [] };
+        if (!trendsRes.ok) throw await apiResponseError(trendsRes, '추세 데이터를 불러오지 못했습니다.');
+        const trendsData = await responseJsonOrNull(trendsRes);
+        if (!trendsData) throw new Error('변화 추이 응답을 읽지 못했습니다.');
+        const taxData = taxRes.ok ? (await responseJsonOrNull(taxRes) || { values: [] }) : { values: [] };
         const taxMap = {};
         (taxData.values || []).forEach((v) => { taxMap[v.key] = v; });
         setTrends(trendsData);
         setTaxonomy(taxMap);
       } catch (err) {
-        console.error('Error loading meaning change:', err);
+        console.warn('Error loading meaning change:', err);
         setError(err.message || '변화 데이터를 불러오지 못했습니다.');
       } finally {
         setIsLoading(false);

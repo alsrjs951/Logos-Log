@@ -16,6 +16,7 @@
 """
 import json
 import os
+from services.observability import log_event
 
 # 상위차원(higher-order) — circumplex의 4분면
 OPENNESS_TO_CHANGE = "openness_to_change"
@@ -207,5 +208,5 @@ def classify_value(keyword, insight=""):
             return None, conf, "llm"
         return key, conf, "llm"
     except Exception as e:  # noqa: BLE001 — 분류 실패가 카드 저장을 막아선 안 됨
-        print(f"[value_taxonomy] classify error: {e}", flush=True)
+        log_event("value_taxonomy_classify_error", level="warning", error_type=type(e).__name__)
         return None, 0.0, "error"

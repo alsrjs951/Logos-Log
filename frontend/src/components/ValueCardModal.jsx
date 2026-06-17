@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ShieldAlert, Check, X, Loader2 } from 'lucide-react';
-import { apiUrl } from '../api';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
+import { describeSavedIntention } from '../utils/intentionHistory';
 
 const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -15,6 +17,8 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
   const [intentionText, setIntentionText] = useState('');
   const [intentionSaving, setIntentionSaving] = useState(false);
   const [intentionSaved, setIntentionSaved] = useState(false);
+  const [intentionMessage, setIntentionMessage] = useState('');
+  const [intentionError, setIntentionError] = useState('');
 
   // 캔버스 기반 카드 이미지 드로잉 및 다운로드 처리 함수
   const exportCardAsImage = () => {
@@ -239,24 +243,24 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
       }
 
       try {
-        const response = await fetch(apiUrl('/api/value-cards/extract'), {
+        const response = await fetchWithAuth('/api/value-cards/extract', {
           method: 'POST',
+          token,
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ history: chatHistory })
         });
 
         if (!response.ok) {
-          throw new Error('가치 추출 실패');
+          throw await apiResponseError(response, '가치 추출에 실패했습니다.');
         }
 
-        const data = await response.json();
-        setKeyword(data.keyword);
-        setInsight(data.insight);
+        const data = await responseJsonOrNull(response);
+        setKeyword(data?.keyword || '성찰');
+        setInsight(data?.insight || '대화를 통해 내면의 깊은 가치를 돌아보았습니다.');
       } catch (err) {
-        console.error('Error extracting value card:', err);
+        console.warn('Error extracting value card:', err);
         setError('AI가 깨달음을 추출하지 못했습니다. 직접 입력하여 카드를 만들 수 있습니다.');
         setKeyword('성찰');
         setInsight('대화를 통해 내면의 깊은 가치를 돌아보았습니다.');
@@ -266,19 +270,20 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
     };
 
     extractValue();
-  }, [messages]);
+  }, [messages, token]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     if (!keyword.trim() || !insight.trim()) return;
 
     setIsSaving(true);
+    setError('');
     try {
-      const response = await fetch(apiUrl('/api/value-cards'), {
+      const response = await fetchWithAuth('/api/value-cards', {
         method: 'POST',
+        token,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           keyword: keyword.trim(),
@@ -288,15 +293,16 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
       });
 
       if (!response.ok) {
-        throw new Error('가치 카드 저장 실패');
+        throw await apiResponseError(response, '가치 카드 저장에 실패했습니다.');
       }
 
-      const data = await response.json();
+      const data = await responseJsonOrNull(response);
+      if (!data?.id) throw new Error('가치 카드 저장 응답을 읽지 못했습니다.');
       setSavedCardId(data.id);
       setIsSuccess(true);
     } catch (err) {
-      console.error('Error saving value card:', err);
-      alert('가치 카드 저장 도중 데이터베이스 오류가 발생했습니다.');
+      console.warn('Error saving value card:', err);
+      setError(err.message || '가치 카드 저장 도중 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }
@@ -306,20 +312,28 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
   const handleSaveIntention = async () => {
     if (!savedCardId || !intentionText.trim()) return;
     setIntentionSaving(true);
+    setIntentionError('');
     try {
-      const response = await fetch(apiUrl('/api/intentions'), {
+      const response = await fetchWithAuth('/api/intentions', {
         method: 'POST',
+        token,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'X-Logos-Action-Source': 'value_card_modal',
         },
-        body: JSON.stringify({ card_id: savedCardId, intention: intentionText.trim() }),
+        body: JSON.stringify({
+          card_id: savedCardId,
+          intention: intentionText.trim(),
+          source: 'value_card_modal',
+        }),
       });
-      if (!response.ok) throw new Error('다짐 저장 실패');
+      if (!response.ok) throw await apiResponseError(response, '다짐 저장 중 오류가 발생했습니다.');
+      const savedIntention = await responseJsonOrNull(response);
+      setIntentionMessage(describeSavedIntention(savedIntention));
       setIntentionSaved(true);
     } catch (err) {
-      console.error('Error saving intention:', err);
-      alert('다짐 저장 중 오류가 발생했습니다.');
+      console.warn('Error saving intention:', err);
+      setIntentionError(err.message || '다짐 저장 중 오류가 발생했습니다.');
     } finally {
       setIntentionSaving(false);
     }
@@ -351,8 +365,7 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
                 <div style={{ textAlign: 'center', color: 'var(--text-main)' }}>
                   <div style={{ fontSize: '1.4rem', marginBottom: '6px' }}>🌱</div>
                   <p style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--text-muted)' }}>
-                    다짐을 담아두었어요. 며칠 뒤 <strong>변화 추이</strong> 화면에 들르면
-                    "그 선택, 해보니 어땠나요?"를 함께 돌아볼 수 있어요.
+                    {intentionMessage || '실험을 담아두었습니다. 며칠 뒤 대시보드에서 돌아볼 수 있어요.'}
                   </p>
                 </div>
               ) : (
@@ -365,12 +378,20 @@ const ValueCardModal = ({ token, messages, onClose, onNavigateToNetwork, emotion
                   </p>
                   <textarea
                     value={intentionText}
-                    onChange={(e) => setIntentionText(e.target.value)}
+                    onChange={(e) => {
+                      setIntentionText(e.target.value);
+                      setIntentionError('');
+                    }}
                     disabled={intentionSaving}
                     placeholder="예: 이번 주엔 부탁을 한 번 정중히 거절해 보겠다."
                     rows={2}
                     style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', padding: '8px 10px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-glass)', color: 'var(--text-main)', fontFamily: 'inherit', fontSize: '0.86rem' }}
                   />
+                  {intentionError && (
+                    <p role="alert" style={{ margin: '8px 0 0', fontSize: '0.76rem', lineHeight: 1.45, color: '#fca5a5' }}>
+                      {intentionError}
+                    </p>
+                  )}
                   <button
                     type="button"
                     onClick={handleSaveIntention}

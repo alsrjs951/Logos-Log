@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import List, Optional
 
@@ -28,3 +28,13 @@ class AnalysisExtractRequest(BaseModel):
 class AnalysisExtractResponse(BaseModel):
     keyword: str
     insight: str
+
+class RecommendedExperimentResponse(BaseModel):
+    status: str
+    anchor_card_id: Optional[str] = None
+    related_card_ids: List[str] = Field(default_factory=list)
+    reason: str = ""
+    experiment: str = ""
+    reflection_question: str = ""
+    source: str = "llm"
+    cache_key: Optional[str] = None

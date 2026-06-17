@@ -32,12 +32,13 @@ jobs:
 
       - name: Prepare Dashboard for Deployment
         run: |
-          mkdir -p _site
+          mkdir -p _site/dashboard
           cp dashboard/index.html _site/index.html
+          cp dashboard/index.html _site/dashboard/index.html
           # 대시보드 전용 README 생성 (선택)
           echo "# Logos Log — DORA Metrics Dashboard" > _site/README.md
           echo "" >> _site/README.md
-          echo "[📊 Open Dashboard](https://alsrjs951.github.io/Logos-Log/dashboard/)" >> _site/README.md
+          echo "[Open Dashboard](https://alsrjs951.github.io/Logos-Log/dashboard/)" >> _site/README.md
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3

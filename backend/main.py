@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 
 # .env 파일 탐색: backend/ 우선, 없으면 프로젝트 루트(backend의 상위 디렉토리) 탐색
@@ -23,18 +24,46 @@ from api.value_cards import router as value_card_router
 from api.intentions import router as intention_router
 from api.auth import router as auth_router
 from api.report import router as report_router
+from services.observability import log_event, normalize_request_id, reset_request_id, set_request_id
+from services.origin_security import cors_allowed_origins
 
 app = FastAPI(title="Logos-Log API", description="AI 챗봇을 위한 백엔드 API 서버")
+
+
+@app.middleware("http")
+async def request_context_middleware(request, call_next):
+    request_id = normalize_request_id(request.headers.get("x-request-id"))
+    token = set_request_id(request_id)
+    started_at = time.monotonic()
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        log_event(
+            "request_completed",
+            method=request.method,
+            path=request.url.path,
+            status_code=response.status_code,
+            latency_ms=round((time.monotonic() - started_at) * 1000),
+        )
+        return response
+    except Exception as exc:
+        log_event(
+            "request_unhandled_error",
+            level="error",
+            method=request.method,
+            path=request.url.path,
+            error_type=type(exc).__name__,
+            latency_ms=round((time.monotonic() - started_at) * 1000),
+        )
+        raise
+    finally:
+        reset_request_id(token)
+
 
 # 프론트엔드 연동을 위한 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174"
-    ],
+    allow_origins=cors_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +80,16 @@ app.include_router(report_router, prefix="/api", tags=["Report"])
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Logos-Log API Server"}
+
+
+@app.get("/health")
+def health_check():
+    return {
+        "status": "ok",
+        "service": "logos_log",
+        "version": os.getenv("APP_VERSION", "dev"),
+    }
+
 
 if __name__ == "__main__":
     import uvicorn

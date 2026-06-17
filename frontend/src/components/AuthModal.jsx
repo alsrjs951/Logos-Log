@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
-import { apiUrl } from '../api';
+import { fetchApi, storeAuthSession } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 const AuthModal = ({ onLoginSuccess }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -20,7 +21,7 @@ const AuthModal = ({ onLoginSuccess }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      const response = await fetch(apiUrl(`/api/auth/${endpoint}`), {
+      const response = await fetchApi(`/api/auth/${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -28,23 +29,22 @@ const AuthModal = ({ onLoginSuccess }) => {
         body: JSON.stringify({ email: normalizedEmail, password })
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.detail || '인증 요청에 실패했습니다.');
+        throw await apiResponseError(response, '인증 요청에 실패했습니다.');
       }
 
-      if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        localStorage.setItem('user_email', data.user.email);
-        onLoginSuccess(data.access_token, data.user.email);
+      const data = await responseJsonOrNull(response);
+      if (data?.access_token) {
+        const userEmail = data.user?.email || normalizedEmail;
+        storeAuthSession(data.access_token, userEmail);
+        onLoginSuccess(data.access_token, userEmail);
       } else {
-        setMessage('회원가입이 완료되었습니다! 로그인해 주세요.');
+        setMessage(data?.message || '회원가입이 완료되었습니다. 로그인해 주세요.');
         setIsLoginMode(true);
         setPassword('');
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || '인증 요청에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -55,7 +55,7 @@ const AuthModal = ({ onLoginSuccess }) => {
       <div className="auth-card glass-panel" style={{ width: '400px', padding: '35px 30px', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(10, 11, 26, 0.75)', boxShadow: '0 15px 35px rgba(0, 0, 0, 0.6)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ textAlign: 'center' }}>
           <h2 style={{ fontSize: '1.75rem', fontWeight: '800', background: 'var(--accent-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 8px 0' }}>Logos-Log</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>심리학 RAG 기반의 자아 성찰 은하수 다이어리</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>기록을 가치 카드, 작은 실험, 회고로 이어주는 성찰 도구</p>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>

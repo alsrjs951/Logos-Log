@@ -1,0 +1,75 @@
+[
+  {
+    "id": "exp_autonomy_self_understanding",
+    "description": "자율성과 자기 이해가 함께 드러난 카드",
+    "cards": [
+      {
+        "keyword": "자율성",
+        "canonical_value": "self_direction",
+        "insight": "나는 남의 기대와 내가 원하는 선택을 구분할 때 마음이 편해진다."
+      },
+      {
+        "keyword": "자기 이해",
+        "canonical_value": "self_direction",
+        "insight": "내가 무엇을 원하는지 먼저 적어보면 선택이 덜 흔들린다."
+      }
+    ],
+    "expected_terms": ["기대", "선택", "원하는"],
+    "recommendation": {
+      "reason": "최근 카드에서 남의 기대와 내가 원하는 선택을 구분하려는 흐름이 반복됩니다.",
+      "experiment": "이번 주에 작은 선택 하나를 앞두고 남의 기대와 내가 원하는 것을 한 줄씩 적은 뒤, 부담이 낮은 선택 하나를 직접 골라보세요.",
+      "reflection_question": "직접 고른 선택이 내 마음을 이해하고 움직이는 감각을 조금 더 선명하게 했나요?"
+    }
+  },
+  {
+    "id": "exp_achievement_small_finish",
+    "description": "성취 가치가 압박으로 변하지 않게 낮은 기준을 제안",
+    "cards": [
+      {
+        "keyword": "성취",
+        "canonical_value": "achievement",
+        "insight": "완벽하게 끝내려다 시작을 미루는 일이 많다."
+      }
+    ],
+    "expected_terms": ["완료", "작은", "기준"],
+    "recommendation": {
+      "reason": "성취가 움직임으로 이어지려면 완벽한 결과보다 시작 가능한 기준이 먼저 필요해 보입니다.",
+      "experiment": "이번 주에 미뤄둔 일 하나를 30분 안에 끝낼 수 있는 작은 기준으로 낮춰 완료해보세요.",
+      "reflection_question": "작게 끝낸 경험이 성취를 압박보다 움직임에 가깝게 느끼게 했나요?"
+    }
+  },
+  {
+    "id": "exp_benevolence_contact",
+    "description": "박애/관계 흐름을 가까운 표현으로 전환",
+    "cards": [
+      {
+        "keyword": "관계",
+        "canonical_value": "benevolence",
+        "insight": "혼자 버티기보다 가까운 사람에게 마음을 조금 나누고 싶다."
+      }
+    ],
+    "expected_terms": ["가까운", "표현", "사람"],
+    "recommendation": {
+      "reason": "관계 안에서 혼자 버티는 방식을 조금 덜어내려는 가치가 보입니다.",
+      "experiment": "이번 주에 가까운 사람 한 명에게 고마움이나 도움 요청을 짧게 표현해보세요.",
+      "reflection_question": "그 표현이 혼자 버티는 느낌을 조금 덜어주었나요?"
+    }
+  },
+  {
+    "id": "exp_security_support",
+    "description": "안전 가치를 불안을 줄이는 지원 자원 확인으로 전환",
+    "cards": [
+      {
+        "keyword": "안전",
+        "canonical_value": "security",
+        "insight": "불안할 때 미리 확인해둔 사람과 일정이 있으면 덜 흔들린다."
+      }
+    ],
+    "expected_terms": ["지원", "확인", "불안"],
+    "recommendation": {
+      "reason": "안전이라는 가치는 불안을 없애려는 통제보다 의지할 자원을 확인하는 행동과 잘 맞습니다.",
+      "experiment": "이번 주에 불안을 줄여줄 지원 자원 하나를 확인해 적어두세요. 사람, 일정, 정보 중 하나면 충분합니다.",
+      "reflection_question": "확인해 둔 지원 자원이 마음의 여유를 조금 만들어주었나요?"
+    }
+  }
+]

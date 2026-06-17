@@ -1,6 +1,21 @@
-import { useState, useEffect } from 'react';
-import { Loader2, Sparkles, RefreshCw, TrendingUp } from 'lucide-react';
-import { apiUrl } from '../api';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { AlertTriangle, FileText, Loader2, Sparkles, RefreshCw, TrendingUp } from 'lucide-react';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
+
+const EMPTY_REPORT = {
+  status: 'empty',
+  has_data: false,
+  message: '최근 7일간 작성된 일기가 없습니다.',
+  summary: null,
+  keywords: [],
+  next_question: null,
+  journal_count: 0,
+};
+
+const REPORT_CACHE_TTL_MS = 1000 * 60 * 5;
+const reportCache = new Map();
+const inFlightReports = new Map();
 
 const cleanReportText = (value) => {
   if (!value) return '';
@@ -12,34 +27,111 @@ const cleanReportText = (value) => {
     .trim();
 };
 
+const getReportCacheKey = (token) => token || 'anonymous';
+
+const normalizeReport = (data) => (
+  data?.has_data === false ? { ...EMPTY_REPORT, ...data } : data
+);
+
+const getCachedReport = (cacheKey) => {
+  const cached = reportCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (Date.now() - cached.savedAt > REPORT_CACHE_TTL_MS) {
+    reportCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.report;
+};
+
+const loadWeeklyReport = async (token, { force = false } = {}) => {
+  const cacheKey = getReportCacheKey(token);
+  const cached = force ? null : getCachedReport(cacheKey);
+  if (cached) return cached;
+
+  const pending = force ? null : inFlightReports.get(cacheKey);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const res = await fetchWithAuth('/api/journals/weekly-report', { token });
+
+    if (res.status === 204 || res.status === 404) {
+      return { ...EMPTY_REPORT };
+    }
+
+    if (!res.ok) throw await apiResponseError(res, '리포트를 불러오는 중 문제가 발생했습니다.');
+    const data = await responseJsonOrNull(res);
+    if (!data) throw new Error('리포트 응답을 읽지 못했습니다.');
+    return normalizeReport(data);
+  })();
+
+  inFlightReports.set(cacheKey, request);
+
+  try {
+    const report = await request;
+    if (inFlightReports.get(cacheKey) === request) {
+      reportCache.set(cacheKey, { report, savedAt: Date.now() });
+    }
+    return report;
+  } finally {
+    if (inFlightReports.get(cacheKey) === request) {
+      inFlightReports.delete(cacheKey);
+    }
+  }
+};
+
 const WeeklyReport = ({ token }) => {
   const [report, setReport] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const requestIdRef = useRef(0);
+  const isMountedRef = useRef(false);
 
-  const fetchReport = async () => {
+  const fetchReport = useCallback(async ({ force = false } = {}) => {
     if (!token) return;
+    const cacheKey = getReportCacheKey(token);
+    const cached = force ? null : getCachedReport(cacheKey);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    if (cached) {
+      setReport(cached);
+      setError(null);
+      setHasLoaded(true);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl('/api/journals/weekly-report'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('리포트를 불러오지 못했습니다.');
-      const data = await res.json();
-      setReport(data);
+      const nextReport = await loadWeeklyReport(token, { force });
+      if (!isMountedRef.current || requestId !== requestIdRef.current) return;
+      setReport(nextReport);
     } catch (e) {
-      setError(e.message);
+      if (!isMountedRef.current || requestId !== requestIdRef.current) return;
+      setReport(null);
+      setError(e.message || '리포트를 불러오는 중 문제가 발생했습니다.');
     } finally {
-      setIsLoading(false);
-      setHasLoaded(true);
+      if (isMountedRef.current && requestId === requestIdRef.current) {
+        setIsLoading(false);
+        setHasLoaded(true);
+      }
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     fetchReport();
-  }, [token]);
+  }, [fetchReport]);
 
   const summary = cleanReportText(report?.summary);
   const nextQuestion = cleanReportText(report?.next_question);
@@ -79,13 +171,13 @@ const WeeklyReport = ({ token }) => {
           <div className="weekly-report-title-copy">
             <h2 className="weekly-report-title" style={{ fontSize: '1rem', fontWeight: '700', margin: 0 }}>이번 주 성찰 리포트</h2>
             <p className="weekly-report-subtitle" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>
-              최근 7일간의 기록을 AI가 분석했습니다
+              최근 7일간의 기록에서 반복된 흐름을 정리합니다
             </p>
           </div>
         </div>
         <button
           className="weekly-report-refresh"
-          onClick={fetchReport}
+          onClick={() => fetchReport({ force: true })}
           disabled={isLoading}
           title="리포트 새로고침"
           style={{
@@ -109,11 +201,11 @@ const WeeklyReport = ({ token }) => {
       </div>
 
       {/* 콘텐츠 */}
-      {isLoading && (
+      {isLoading && !report && (
         <div className="weekly-report-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '24px 0' }}>
           <Loader2 size={28} color="var(--accent-primary)" style={{ animation: 'spin 1s linear infinite' }} />
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
-            AI가 이번 주 성찰을 분석하는 중...
+            이번 주 기록의 흐름을 정리하는 중...
           </p>
         </div>
       )}
@@ -122,26 +214,57 @@ const WeeklyReport = ({ token }) => {
         <div
           className="weekly-report-error"
           style={{
-            background: 'rgba(239,68,68,0.08)',
-            border: '1px solid rgba(239,68,68,0.2)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.22)',
             borderRadius: '10px',
             padding: '14px',
-            fontSize: '0.82rem',
-            color: '#ef4444',
+            color: '#fbbf24',
           }}
         >
-          ⚠️ {error}
+          <AlertTriangle size={16} style={{ flex: '0 0 auto', marginTop: '2px' }} />
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '0.82rem', fontWeight: 700, margin: '0 0 4px 0' }}>
+              리포트 생성 상태를 확인하지 못했습니다.
+            </p>
+            <p className="weekly-report-text" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+              {error}
+            </p>
+          </div>
         </div>
       )}
 
-      {!isLoading && !error && hasLoaded && report && !report.has_data && (
-        <div className="weekly-report-state" style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
-          <p style={{ fontSize: '0.88rem', margin: '0 0 6px 0' }}>이번 주 작성된 일기가 없습니다.</p>
-          <p style={{ fontSize: '0.78rem', margin: 0 }}>일기를 작성하면 AI 성찰 리포트가 생성됩니다 ✨</p>
+      {!error && hasLoaded && report && !report.has_data && (
+        <div className="weekly-report-state" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '22px 0', color: 'var(--text-muted)' }}>
+          <div
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: '0 0 auto',
+            }}
+          >
+            <FileText size={17} color="var(--accent-primary)" />
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: '0.88rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 5px 0' }}>
+              아직 이번 주 리포트가 없습니다.
+            </p>
+            <p className="weekly-report-text" style={{ fontSize: '0.78rem', margin: 0 }}>
+              {report.message || '최근 7일 동안 작성한 일기가 생기면 성찰 리포트가 표시됩니다.'}
+            </p>
+          </div>
         </div>
       )}
 
-      {!isLoading && !error && report && report.has_data && (
+      {!error && report && report.has_data && (
         <div className="weekly-report-body" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* 요약 */}
           <div

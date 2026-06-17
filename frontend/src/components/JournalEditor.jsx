@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Sparkles } from 'lucide-react';
-import { apiUrl } from '../api';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 const EMOTIONS = [
   { key: 'happy', label: '행복', emoji: '😊' },
@@ -26,6 +27,7 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
   const [isSaving, setIsSaving] = useState(false);
   const [savedJournalData, setSavedJournalData] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [error, setError] = useState('');
 
   // 외부(예: 대시보드 캘린더 클릭)에서 주입된 preselectedDate가 변경될 때 selectedDate 상태 업데이트
   useEffect(() => {
@@ -41,16 +43,17 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
     if (!title.trim() || !content.trim() || !selectedDate) return;
 
     setIsSaving(true);
+    setError('');
     try {
       // 선택된 로컬 날짜 문자열을 ISO 시간 타임스탬프로 결합
       const isoDateTime = new Date(`${selectedDate}T12:00:00`).toISOString();
 
       // 1. 일기를 Supabase 백엔드에 저장 (인증 토큰 동반)
-      const response = await fetch(apiUrl('/api/journals'), {
+      const response = await fetchWithAuth('/api/journals', {
         method: 'POST',
+        token,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           title: title.trim(),
@@ -61,10 +64,11 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
       });
 
       if (!response.ok) {
-        throw new Error('일기 저장 실패');
+        throw await apiResponseError(response, '일기 저장에 실패했습니다.');
       }
 
-      const savedJournal = await response.json();
+      const savedJournal = await responseJsonOrNull(response);
+      if (!savedJournal?.id) throw new Error('일기 저장 응답을 읽지 못했습니다.');
       setSavedJournalData(savedJournal);
       setShowSuccessModal(true);
       
@@ -74,8 +78,8 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
       setSelectedEmotion('calm');
       setSelectedDate(getLocalDateString());
     } catch (error) {
-      console.error('Error saving journal:', error);
-      alert('일기를 저장하는 도중 오류가 발생했습니다. 백엔드가 켜져 있는지 확인하세요.');
+      console.warn('Error saving journal:', error);
+      setError(error.message || '일기를 저장하는 도중 오류가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }
@@ -84,6 +88,24 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
   return (
     <>
       <form className="editor-container" onSubmit={handleSubmit}>
+        {error && (
+          <div
+            role="alert"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: '1px solid rgba(239,68,68,0.35)',
+              background: 'rgba(239,68,68,0.08)',
+              color: '#fecaca',
+              fontSize: '0.84rem',
+              lineHeight: 1.45,
+            }}
+          >
+            {error}
+          </div>
+        )}
         
         {/* 제목 및 날짜 가로 정렬 레이아웃 */}
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', width: '100%', marginBottom: '6px' }}>
@@ -94,7 +116,10 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
               className="editor-title-input"
               placeholder="오늘 하루의 제목을 붙여보세요..."
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setError('');
+              }}
               disabled={isSaving}
               style={{ width: '100%', height: '42px', margin: 0 }}
               required
@@ -106,7 +131,10 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
             <input 
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setError('');
+              }}
               disabled={isSaving}
               style={{
                 background: 'rgba(10, 11, 26, 0.4)',
@@ -135,7 +163,10 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
                 key={emo.key}
                 type="button"
                 className={`emotion-btn ${selectedEmotion === emo.key ? 'active' : ''}`}
-                onClick={() => setSelectedEmotion(emo.key)}
+                onClick={() => {
+                  setSelectedEmotion(emo.key);
+                  setError('');
+                }}
                 disabled={isSaving}
               >
                 <span>{emo.emoji}</span>
@@ -147,9 +178,12 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
 
         <textarea
           className="editor-content-textarea"
-          placeholder="오늘 있었던 일이나 떠오르는 생각, 느꼈던 감정을 편안하게 적어보세요. 저장 완료 후 AI와 자아 성찰을 위한 실존 상담 대화를 개시할 수 있습니다..."
+          placeholder="오늘 있었던 일이나 떠오르는 생각, 느꼈던 감정을 편안하게 적어보세요. 저장 후 성찰 대화를 통해 가치 카드와 작은 실험으로 이어갈 수 있습니다..."
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => {
+            setContent(e.target.value);
+            setError('');
+          }}
           disabled={isSaving}
           required
         />
@@ -208,7 +242,7 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
               오늘의 일기가 밤하늘에 기록되었습니다
             </h3>
             <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: '1.5', marginBottom: '24px' }}>
-              기록된 소중한 일기를 바탕으로 지금 바로 AI 심리학 분석가와 실존적 성찰 대화를 나누어보시겠습니까?
+              이 기록을 바탕으로 지금 바로 성찰 대화를 이어가고, 나중에 가치 카드와 작은 실험으로 묶어볼 수 있습니다.
             </p>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -230,7 +264,7 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
                   boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)'
                 }}
               >
-                💬 즉시 AI 성찰 대화 시작
+                💬 성찰 대화 시작
               </button>
               
               {/* 대시보드로 이동 */}
@@ -253,7 +287,7 @@ const JournalEditor = ({ token, preselectedDate, onStartAnalysis, onSaveOnly }) 
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
               >
-                📅 홈 대시보드로 이동 (감정 캘린더)
+                📅 홈 대시보드로 이동
               </button>
             </div>
           </div>

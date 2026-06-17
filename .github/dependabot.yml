@@ -3,7 +3,36 @@
 
 version: 2
 updates:
-  # 1. npm package updates for assignments/week9
+  # Frontend production app dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Seoul"
+    open-pull-requests-limit: 10
+    groups:
+      production-dependencies:
+        dependency-type: "production"
+      development-dependencies:
+        dependency-type: "development"
+
+  # Backend production app dependencies
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Seoul"
+    open-pull-requests-limit: 10
+    groups:
+      backend-dependencies:
+        patterns:
+          - "*"
+
+  # Historical week9 assignment package updates
   - package-ecosystem: "npm"
     directory: "/assignments/week9"
     schedule:
@@ -19,7 +48,7 @@ updates:
       development-dependencies:
         dependency-type: "development"
 
-  # 2. GitHub Actions updates
+  # GitHub Actions updates
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

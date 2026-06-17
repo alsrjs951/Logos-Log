@@ -27,9 +27,12 @@ def get_current_user(authorization: str = Header(None)) -> dict:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
         user_id = payload.get("user_id")
         email = payload.get("email")
+        token_type = payload.get("token_type", "access")
         
         if not user_id or not email:
             raise HTTPException(status_code=401, detail="토큰 정보가 불완전합니다.")
+        if token_type != "access":
+            raise HTTPException(status_code=401, detail="access token이 아닙니다.")
             
         return {
             "id": user_id,
