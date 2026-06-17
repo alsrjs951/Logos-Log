@@ -16,6 +16,7 @@ permissions:
 jobs:
   build-and-push:
     name: Build & Push to GHCR
+    if: vars.PUSH_BACKEND_IMAGE == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -54,7 +55,6 @@ jobs:
 
   deploy-and-verify:
     name: Deploy to Render & Verify Health
-    needs: build-and-push
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

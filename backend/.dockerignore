@@ -1,8 +1,13 @@
 __pycache__/
+*.py[cod]
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .env
+.env.*
 .git
 .github
 .gitignore
@@ -13,3 +18,10 @@ node_modules
 docker-compose*.yml
 Dockerfile
 .dockerignore
+
+eval/runs/
+eval/qrels/
+tests/
+
+*.log
+.DS_Store

@@ -25,6 +25,12 @@ Set these in GitHub Actions before the final main deployment:
 | `RENDER_DEPLOY_HOOK_URL` | `week10-backend-deploy.yml` | Trigger Render deploy |
 | `RENDER_BACKEND_URL` | `week10-backend-deploy.yml` | Verify live backend `/health` |
 
+Optional repository variables:
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `PUSH_BACKEND_IMAGE` | `week10-backend-deploy.yml` | Set to `true` only when GHCR backend image publishing is required |
+
 Backend runtime secrets must be configured in Render:
 
 ```bash
