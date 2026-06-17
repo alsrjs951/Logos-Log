@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import MessageInput from './MessageInput';
 import SourceCards from './SourceCards';
 import ValueCardModal from './ValueCardModal';
 import { Bot, User, Heart, Phone } from 'lucide-react';
-import { apiUrl } from '../api';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
+import { addAnalyzedJournalId, hasAnalyzedJournalId } from '../utils/analyzedJournals';
 
 // 자해/자살 위기 감지 시 노출되는 검증된 전문 상담 핫라인 (단일 소스)
 const CRISIS_RESOURCES = [
@@ -414,7 +416,7 @@ const ThinkingIndicator = ({ loadingStage }) => {
 
 const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateToNetwork }) => {
   const [messages, setMessages] = useState([
-    { role: 'bot', content: '안녕하세요! 저는 의미치료(Logotherapy)와 심리학 연구를 기반으로 당신의 내면 성찰을 돕는 Logos-Log AI 동반자입니다. 오늘 작성한 일기를 선택하여 깊은 성찰 대화를 이어가거나, 하단에 바로 고민을 입력하여 세션을 개시할 수 있습니다.', sources: [] }
+    { role: 'bot', content: '안녕하세요. Logos-Log는 오늘의 기록을 함께 살펴보고, 의미 있는 가치 카드와 다음 작은 실험으로 이어가도록 돕습니다. 일기를 선택해 성찰 대화를 시작하거나, 지금 떠오르는 고민을 바로 적어도 좋습니다.', sources: [] }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState('');
@@ -425,6 +427,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
   // 중복 실행 및 스트림 레이스 컨디션을 방지하기 위한 Ref 추가
   const processedJournalIdRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const handleSendMessageRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -458,15 +461,11 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
           setIsLoading(true);
           setLoadingStage('🔄 과거 성찰 대화 내역을 불러오는 중...');
           
-          const res = await fetch(apiUrl(`/api/chat/history/${initialJournal.id}`), {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
+          const res = await fetchWithAuth(`/api/chat/history/${initialJournal.id}`, { token });
           if (res.ok) {
-            const historyData = await res.json();
+            const historyData = await responseJsonOrNull(res);
             
-            if (historyData && historyData.length > 0) {
+            if (Array.isArray(historyData) && historyData.length > 0) {
               // 대화 이력이 존재하면 저장된 대화 복원
               setMessages(historyData);
               setIsLoading(false);
@@ -479,24 +478,17 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
             }
           }
         } catch (err) {
-          console.error("Failed to load chat history:", err);
+          console.warn("Failed to load chat history:", err);
         } finally {
           setIsLoading(false);
           setLoadingStage('');
         }
 
         // 대화 이력이 없는 경우에만 신규 RAG 분석 세션 실행
-        // 성찰 완료된 일기 ID를 localStorage에 등록 및 커스텀 이벤트 전송
-        try {
-          const analyzedIds = JSON.parse(localStorage.getItem('analyzed_journal_ids') || '[]');
-          if (!analyzedIds.includes(initialJournal.id)) {
-            analyzedIds.push(initialJournal.id);
-            localStorage.setItem('analyzed_journal_ids', JSON.stringify(analyzedIds));
-            // 사이드바 일기 목록 리프레시를 위해 전역 이벤트 트리거
-            window.dispatchEvent(new CustomEvent('journal_analyzed', { detail: initialJournal.id }));
-          }
-        } catch (e) {
-          console.error("LocalStorage write error:", e);
+        if (!hasAnalyzedJournalId(initialJournal.id)) {
+          addAnalyzedJournalId(initialJournal.id);
+          // 사이드바 일기 목록 리프레시를 위해 전역 이벤트 트리거
+          window.dispatchEvent(new CustomEvent('journal_analyzed', { detail: initialJournal.id }));
         }
         
         setMessages([]); // 기존 메시지 초기화
@@ -513,7 +505,9 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
         const queryText = `[일기 분석 요청]\n제목: ${initialJournal.title}\n감정 상태: ${emoji} (${initialJournal.emotion})\n본문:\n${initialJournal.content}`;
         
         // 일기 분석 API 요청 시작
-        await handleSendMessage(queryText, true, initialJournal.id);
+        if (handleSendMessageRef.current) {
+          await handleSendMessageRef.current(queryText, true, initialJournal.id);
+        }
         
         if (onClearInitialJournal) {
           onClearInitialJournal();
@@ -522,7 +516,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
 
       fetchHistoryAndStart();
     }
-  }, [initialJournal]);
+  }, [initialJournal, onClearInitialJournal, token]);
 
   const handleSendMessage = async (query, isJournalOverride = false, journalIdOverride = null) => {
     // 이미 진행 중인 이전 RAG 요청이 있다면 강제로 취소(Abort)하여 혼선 방지
@@ -558,11 +552,11 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
 
     try {
       // 3. 백엔드 API (SSE) 호출
-      const response = await fetch(apiUrl('/api/chat'), {
+      const response = await fetchWithAuth('/api/chat', {
         method: 'POST',
+        token,
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         signal: controller.signal, // AbortController 신호 바인딩
         body: JSON.stringify({ 
@@ -574,11 +568,10 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP 오류 ${response.status}`);
+        throw await apiResponseError(response, '성찰 답변을 불러오지 못했습니다.');
       }
 
-      if (!response.body) throw new Error('ReadableStream not supported.');
+      if (!response.body) throw new Error('이 브라우저에서는 스트리밍 응답을 읽을 수 없습니다.');
 
       // 4. SSE 스트리밍 파싱 로직
       const reader = response.body.getReader();
@@ -653,7 +646,7 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
                   setLoadingStage('');
                 }
               } catch (e) {
-                console.error("JSON Parse Error:", e, dataStr);
+                console.warn("Chat stream JSON parse error:", e, dataStr);
               }
             }
           }
@@ -662,13 +655,12 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
     } catch (error) {
       if (error.name === 'AbortError') {
         // 이전 비동기 요청 취소 시에는 에러 화면 처리 없이 조용히 무시함
-        console.log("Previous request aborted.");
         return;
       }
-      console.error('Error fetching chat:', error);
+      console.warn('Error fetching chat:', error);
       setMessages(prev => {
         const newMessages = [...prev];
-        newMessages[newMessages.length - 1].content = "서버와 통신하는 중 오류가 발생했습니다. 백엔드 서버가 실행 중인지 확인해주세요.";
+        newMessages[newMessages.length - 1].content = error.message || "서버와 통신하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
         return newMessages;
       });
       setIsLoading(false);
@@ -681,12 +673,16 @@ const ChatWindow = ({ token, initialJournal, onClearInitialJournal, onNavigateTo
     }
   };
 
+  useLayoutEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  });
+
   return (
     <>
       <div className="chat-window-header">
         <span className={`chat-status-indicator ${isLoading ? 'is-loading' : ''}`}>
           <span className="chat-status-dot" />
-          {isLoading ? 'AI 분석가가 답변을 구성 중...' : '성찰 세션 활성화'}
+          {isLoading ? '성찰 답변을 구성 중...' : '성찰 대화 활성화'}
         </span>
         {messages.length > 1 && (
           <button 

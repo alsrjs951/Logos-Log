@@ -73,7 +73,6 @@ jobs:
         if: env.LIVE_URL != ''
         run: |
           chmod +x ./assignments/week10/scripts/healthcheck.sh
-          # Run the healthcheck script against the live backend URL
-          ./assignments/week10/scripts/healthcheck.sh "$LIVE_URL" 20 15
+          ./assignments/week10/scripts/healthcheck.sh "${LIVE_URL%/}/health" 20 15
         env:
           LIVE_URL: ${{ secrets.RENDER_BACKEND_URL }}

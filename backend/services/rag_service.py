@@ -9,6 +9,7 @@ from typing import AsyncGenerator
 from models.chat import ChatSource
 from services.safety import detect_crisis
 from services.encryption import encrypt, decrypt
+from services.observability import log_event, safe_hash
 from db import get_db
 
 class RAGService:
@@ -117,10 +118,10 @@ class RAGService:
                 variants = [primary or query]
             variants = self._apply_query_fallbacks(query, variants)
 
-            print(f"RAG Optimization: Original: '{query}' -> Query Variants: {variants}", flush=True)
+            log_event("rag_query_expanded", variant_count=len(variants))
             return variants
         except Exception as e:
-            print(f"Error in query expansion: {e}", flush=True)
+            log_event("rag_query_expansion_error", level="warning", error_type=type(e).__name__)
             return self._apply_query_fallbacks(query, [primary or query])
 
     def _infer_query_focus(self, query: str, variants: list[str] = None) -> str:
@@ -608,7 +609,7 @@ class RAGService:
             response = await self.llm.ainvoke(messages)
             return response.content.strip()
         except Exception as e:
-            print(f"Error translating paper chunk to Korean: {e}", flush=True)
+            log_event("rag_translation_error", level="warning", error_type=type(e).__name__)
             return text
 
     async def _translate_and_summarize_paper(self, text: str) -> dict:
@@ -648,7 +649,7 @@ class RAGService:
                 "summary_ko": data.get("summary_ko", "").strip()
             }
         except Exception as e:
-            print(f"Error translating and summarizing paper: {e}", flush=True)
+            log_event("rag_translation_summary_error", level="warning", error_type=type(e).__name__)
             try:
                 translated = await self._translate_to_korean(text)
                 summary = translated.split('.')[0].strip() + "."
@@ -736,7 +737,7 @@ class RAGService:
         # LLM Re-ranking 적용
         if len(candidates) <= 4:
             reranked_results = candidates
-            print(f"RAG Optimization: Candidates count is {len(candidates)} (<= 4). Skipping LLM re-ranking.", flush=True)
+            log_event("rag_llm_rerank_skipped", candidate_count=len(candidates), reason="few_candidates")
         else:
             reranked_results = await self._rerank_documents(query, candidates, query_variants=query_variants)
 
@@ -790,7 +791,7 @@ class RAGService:
                 result["query_text"] = query_text
             return results
         except Exception as e:
-            print(f"Error during MongoDB Vector Search: {e}. Falling back to empty search.", flush=True)
+            log_event("rag_vector_search_error", level="error", error_type=type(e).__name__)
             return []
 
     def _merge_vector_rankings(self, rankings: list[list[dict]], limit: int = 24, k: int = 60) -> list[dict]:
@@ -997,7 +998,7 @@ class RAGService:
             reranked.sort(key=lambda doc: (-doc.get("cross_encoder_score", 0.0), -doc.get("rrf_score", 0.0)))
             return reranked[:limit]
         except Exception as e:
-            print(f"Error during cross-encoder reranking: {e}. Falling back to vector merged order.", flush=True)
+            log_event("rag_cross_encoder_rerank_error", level="warning", error_type=type(e).__name__)
             return documents[:limit]
 
     def _trace_doc(self, doc: dict, include_expanded: bool = False) -> dict:
@@ -1179,7 +1180,7 @@ class RAGService:
                 "unsupported_claims": [str(item) for item in unsupported_claims if item],
             }
         except Exception as e:
-            print(f"Error during RAG answer verification: {e}", flush=True)
+            log_event("rag_answer_verification_error", level="warning", error_type=type(e).__name__)
             return {**fallback, "error": str(e)}
 
     def _claim_candidate_sentences(self, answer: str) -> list[str]:
@@ -1280,7 +1281,7 @@ class RAGService:
                 "edits": edits,
             }
         except Exception as e:
-            print(f"Error during RAG claim citation checking: {e}", flush=True)
+            log_event("rag_claim_check_error", level="warning", error_type=type(e).__name__)
             return {**fallback, "error": str(e)}
 
     def _grounded_answer_template(self, is_journal: bool = False) -> str:
@@ -1479,7 +1480,13 @@ class RAGService:
                 ).sort("chunk_index", 1).limit(3)
                 neighbors = list(cursor)
             except Exception as e:
-                print(f"Error loading adjacent chunks for {document_id}:{chunk_index}: {e}", flush=True)
+                log_event(
+                    "rag_adjacent_chunks_error",
+                    level="warning",
+                    document_id=document_id,
+                    chunk_index=chunk_index,
+                    error_type=type(e).__name__,
+                )
                 continue
 
             if not neighbors:
@@ -1551,7 +1558,13 @@ class RAGService:
                         "created_at": datetime.datetime.utcnow().isoformat()
                     })
                 except Exception as e:
-                    print(f"Error saving crisis chat message to database: {e}", flush=True)
+                    log_event(
+                        "rag_crisis_chat_save_error",
+                        level="warning",
+                        user_hash=safe_hash(user_id),
+                        journal_hash=safe_hash(journal_id),
+                        error_type=type(e).__name__,
+                    )
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
@@ -1616,7 +1629,13 @@ class RAGService:
                     }
                     db.chat_messages.insert_one(bot_msg)
                 except Exception as e:
-                    print(f"Error saving chat message to database: {e}", flush=True)
+                    log_event(
+                        "rag_casual_chat_save_error",
+                        level="warning",
+                        user_hash=safe_hash(user_id),
+                        journal_hash=safe_hash(journal_id),
+                        error_type=type(e).__name__,
+                    )
             
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             return
@@ -1809,7 +1828,7 @@ class RAGService:
                 for text_chunk in self._stream_text_chunks(full_answer):
                     yield f"data: {json.dumps({'type': 'chunk', 'data': text_chunk}, ensure_ascii=False)}\n\n"
             except Exception as e:
-                print(f"Error during verified RAG generation: {e}. Falling back to streaming answer.", flush=True)
+                log_event("rag_verified_generation_error", level="warning", error_type=type(e).__name__)
                 self.last_generation_trace["verification"] = {
                     "enabled": True,
                     "mode": getattr(self, "verifier_mode", "off"),
@@ -1844,7 +1863,7 @@ class RAGService:
                 for text_chunk in self._stream_text_chunks(full_answer):
                     yield f"data: {json.dumps({'type': 'chunk', 'data': text_chunk}, ensure_ascii=False)}\n\n"
             except Exception as e:
-                print(f"Error during claim-checked RAG generation: {e}. Falling back to streaming answer.", flush=True)
+                log_event("rag_claim_checked_generation_error", level="warning", error_type=type(e).__name__)
                 self.last_generation_trace["claim_check"] = {
                     "enabled": True,
                     "mode": getattr(self, "claim_checker_mode", "off"),
@@ -1901,23 +1920,38 @@ class RAGService:
                 }
                 db.chat_messages.insert_one(bot_msg)
             except Exception as e:
-                print(f"Error saving chat message to database: {e}", flush=True)
+                log_event(
+                    "rag_chat_save_error",
+                    level="warning",
+                    user_hash=safe_hash(user_id),
+                    journal_hash=safe_hash(journal_id),
+                    error_type=type(e).__name__,
+                )
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-    def get_chat_history(self, journal_id: str) -> list:
+    def get_chat_history(self, journal_id: str, user_id: str = None) -> list:
         """
         특정 일기 ID에 종속된 대화 이력을 생성 시간 순으로 조회합니다.
         """
         db = get_db()
         try:
-            cursor = db.chat_messages.find({"journal_id": journal_id}).sort("created_at", 1)
+            query = {"journal_id": journal_id}
+            if user_id:
+                query["user_id"] = user_id
+            cursor = db.chat_messages.find(query).sort("created_at", 1)
             docs = list(cursor)
             for d in docs:
                 d["content"] = decrypt(d.get("content"))
             return docs
         except Exception as e:
-            print(f"Error fetching chat history from database: {e}", flush=True)
+            log_event(
+                "rag_chat_history_fetch_error",
+                level="error",
+                user_hash=safe_hash(user_id),
+                journal_hash=safe_hash(journal_id),
+                error_type=type(e).__name__,
+            )
             return []
 
     async def _rerank_documents(self, query: str, documents: list, query_variants: list[str] = None) -> list:
@@ -1978,7 +2012,7 @@ class RAGService:
 
             response = await self.reranker_llm.ainvoke(messages, response_format={"type": "json_object"})
             result = response.content.strip()
-            print(f"RAG Re-ranking Result: '{result}' for Query: '{query}'", flush=True)
+            log_event("rag_llm_rerank_result", selected_count=len(documents))
 
             data = json.loads(result)
             indices = data.get("indices", [])
@@ -2004,7 +2038,7 @@ class RAGService:
             return reranked_docs
 
         except Exception as e:
-            print(f"Error during RAG re-ranking: {e}", flush=True)
+            log_event("rag_llm_rerank_error", level="warning", error_type=type(e).__name__)
             return documents[:4]
 
     def _get_user_value_profile(self, user_id: str = None) -> str:
@@ -2030,5 +2064,5 @@ class RAGService:
             profile_text += "\n[행동 지침] 대화 시 사용자의 과거 가치 목록을 은연중에 상기시키거나, 오늘의 고민과 자연스럽게 결합하여 1인칭 반영 및 질문을 전개하십시오. 단, 과거 가치를 부자연스럽게 나열하지 말고 대화의 흐름 속에 자연스럽게 스며들도록 인용하십시오.\n"
             return profile_text
         except Exception as e:
-            print(f"Error fetching user value profile: {e}", flush=True)
+            log_event("rag_user_value_profile_error", level="warning", user_hash=safe_hash(user_id), error_type=type(e).__name__)
             return ""

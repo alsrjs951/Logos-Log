@@ -1,11 +1,12 @@
 import os
-import sys
 import threading
 import time
 from pymongo import MongoClient
 from pymongo import ASCENDING, DESCENDING
 from pymongo.errors import PyMongoError
 from dotenv import load_dotenv
+from services.intention_loop import STATUS_OPEN
+from services.observability import log_event
 
 # Load environment variables
 dotenv_paths = [
@@ -25,7 +26,7 @@ def get_int_env(name: str, default: int) -> int:
 uri = os.getenv("MONGODB_URI")
 if not uri:
     # Fallback to local or print warning
-    print("Warning: MONGODB_URI not found in environment variables. DB connection might fail.", file=sys.stderr)
+    log_event("mongodb_uri_missing", level="warning")
     uri = "mongodb://localhost:27017/logos_log"
 
 try:
@@ -39,9 +40,9 @@ try:
         socketTimeoutMS=get_int_env("MONGODB_SOCKET_TIMEOUT_MS", 8000),
     )
     db = client.get_default_database("logos_log")
-    print(f"Connected successfully to MongoDB: {db.name}")
+    log_event("mongodb_connected", database=db.name)
 except Exception as e:
-    print(f"Error connecting to MongoDB: {e}", file=sys.stderr)
+    log_event("mongodb_connection_error", level="error", error_type=type(e).__name__)
     client = None
     db = None
 
@@ -53,7 +54,7 @@ def ensure_indexes():
     try:
         client.admin.command("ping")
     except PyMongoError as e:
-        print(f"Warning: MongoDB ping failed; skipping index creation for now: {e}", file=sys.stderr)
+        log_event("mongodb_ping_failed", level="warning", error_type=type(e).__name__)
         _index_thread_started = False
         return
 
@@ -64,32 +65,101 @@ def ensure_indexes():
             unique=True,
         )
     except PyMongoError as e:
-        print(f"Warning: failed to create users email index: {e}", file=sys.stderr)
+        log_event("mongodb_index_create_failed", level="warning", index_name="users_email_unique", error_type=type(e).__name__)
         try:
             db.users.create_index(
                 [("email", ASCENDING)],
                 name="users_email_lookup",
             )
         except PyMongoError as fallback_error:
-            print(f"Warning: failed to create users email lookup index: {fallback_error}", file=sys.stderr)
+            log_event("mongodb_index_create_failed", level="warning", index_name="users_email_lookup", error_type=type(fallback_error).__name__)
 
-    secondary_indexes = [
-        (db.journals, [("user_id", ASCENDING), ("created_at", DESCENDING)], "journals_user_created_at"),
-        (db.value_cards, [("user_id", ASCENDING), ("created_at", DESCENDING)], "value_cards_user_created_at"),
-        (db.chat_messages, [("journal_id", ASCENDING), ("created_at", ASCENDING)], "chat_messages_journal_created_at"),
-        (db.chat_messages, [("user_id", ASCENDING)], "chat_messages_user"),
-        (db.intentions, [("user_id", ASCENDING), ("status", ASCENDING), ("created_at", ASCENDING)], "intentions_user_status_created_at"),
-    ]
+    ensure_secondary_indexes(db)
 
-    for collection, keys, name in secondary_indexes:
-        try:
-            collection.create_index(keys, name=name)
-        except PyMongoError as e:
-            print(f"Warning: failed to create {name} index: {e}", file=sys.stderr)
+    try:
+        ensure_intentions_open_hash_unique_index(db)
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="intentions_open_hash_unique", error_type=type(e).__name__)
+
+    try:
+        db.value_experiment_recommendations.create_index(
+            [("user_id", ASCENDING), ("fingerprint", ASCENDING), ("prompt_version", ASCENDING)],
+            name="value_experiment_recommendations_cache",
+            unique=True,
+        )
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="value_experiment_recommendations_cache", error_type=type(e).__name__)
+
+    try:
+        db.refresh_tokens.create_index(
+            [("jti_hash", ASCENDING)],
+            name="refresh_tokens_jti_hash_unique",
+            unique=True,
+        )
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="refresh_tokens_jti_hash_unique", error_type=type(e).__name__)
+
+    try:
+        db.refresh_tokens.create_index(
+            [("expires_at", ASCENDING)],
+            name="refresh_tokens_expires_at_ttl",
+            expireAfterSeconds=0,
+        )
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="refresh_tokens_expires_at_ttl", error_type=type(e).__name__)
+
+    try:
+        db.refresh_tokens.create_index(
+            [("user_id", ASCENDING), ("revoked_at", ASCENDING), ("expires_at", DESCENDING)],
+            name="refresh_tokens_user_active_lookup",
+        )
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="refresh_tokens_user_active_lookup", error_type=type(e).__name__)
+
+    try:
+        db.refresh_tokens.create_index(
+            [("user_id", ASCENDING), ("family_id", ASCENDING), ("revoked_at", ASCENDING)],
+            name="refresh_tokens_family_revoke_lookup",
+        )
+    except PyMongoError as e:
+        log_event("mongodb_index_create_failed", level="warning", index_name="refresh_tokens_family_revoke_lookup", error_type=type(e).__name__)
 
 _index_thread_started = False
 _last_index_attempt = 0.0
 _INDEX_RETRY_SECONDS = 60
+
+
+def ensure_intentions_open_hash_unique_index(database):
+    database.intentions.create_index(
+        [("user_id", ASCENDING), ("card_id", ASCENDING), ("intention_hash", ASCENDING)],
+        name="intentions_open_hash_unique",
+        unique=True,
+        partialFilterExpression={
+            "status": STATUS_OPEN,
+            "intention_hash": {"$type": "string"},
+        },
+    )
+
+
+def secondary_index_specs(database):
+    return [
+        (database.journals, [("user_id", ASCENDING), ("created_at", DESCENDING)], "journals_user_created_at"),
+        (database.value_cards, [("user_id", ASCENDING), ("created_at", DESCENDING)], "value_cards_user_created_at"),
+        (database.chat_messages, [("user_id", ASCENDING), ("journal_id", ASCENDING), ("created_at", ASCENDING)], "chat_messages_user_journal_created_at"),
+        (database.chat_messages, [("journal_id", ASCENDING), ("created_at", ASCENDING)], "chat_messages_journal_created_at"),
+        (database.chat_messages, [("user_id", ASCENDING)], "chat_messages_user"),
+        (database.intentions, [("user_id", ASCENDING), ("status", ASCENDING), ("created_at", ASCENDING)], "intentions_user_status_created_at"),
+        (database.intentions, [("user_id", ASCENDING), ("card_id", ASCENDING), ("status", ASCENDING), ("intention_hash", ASCENDING)], "intentions_user_card_status_hash"),
+    ]
+
+
+def ensure_secondary_indexes(database):
+    for collection, keys, name in secondary_index_specs(database):
+        try:
+            collection.create_index(keys, name=name)
+        except PyMongoError as e:
+            log_event("mongodb_index_create_failed", level="warning", index_name=name, error_type=type(e).__name__)
+
 
 def start_index_ensure_thread():
     global _index_thread_started, _last_index_attempt

@@ -5,6 +5,8 @@ from models.chat import ChatRequest
 from api.deps import get_current_user
 from db import get_db
 from functools import lru_cache
+from services.observability import get_request_id, log_event, reset_request_id, safe_hash, set_request_id
+from services.rate_limit import enforce_env_rate_limit
 
 router = APIRouter()
 
@@ -13,6 +15,28 @@ def get_rag_service():
     from services.rag_service import RAGService
     return RAGService()
 
+
+async def stream_with_rag_logging(stream, *, user_id: str, journal_id: str | None, is_journal: bool):
+    request_id = get_request_id()
+    token = set_request_id(request_id) if request_id else None
+    try:
+        async for chunk in stream:
+            yield chunk
+    except Exception as exc:
+        log_event(
+            "rag_stream_error",
+            level="error",
+            user_hash=safe_hash(user_id),
+            journal_hash=safe_hash(journal_id),
+            is_journal=is_journal,
+            error_type=type(exc).__name__,
+        )
+        raise
+    finally:
+        if token:
+            reset_request_id(token)
+
+
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     """
@@ -20,14 +44,28 @@ async def chat_endpoint(request: ChatRequest, current_user: dict = Depends(get_c
     LLM의 답변을 실시간 스트리밍(SSE)으로 반환합니다.
     """
     user_id = current_user["id"]
+    enforce_env_rate_limit(
+        scope="llm_chat",
+        identifier=user_id,
+        limit_env="LLM_RATE_LIMIT_PER_MINUTE",
+        default_limit=20,
+        window_env="LLM_RATE_LIMIT_WINDOW_SECONDS",
+        default_window_seconds=60,
+    )
     rag_service = get_rag_service()
+    stream = rag_service.get_streaming_response(
+        query=request.query,
+        history=request.history,
+        is_journal=request.is_journal,
+        journal_id=request.journal_id,
+        user_id=user_id,
+    )
     return StreamingResponse(
-        rag_service.get_streaming_response(
-            query=request.query, 
-            history=request.history, 
-            is_journal=request.is_journal,
+        stream_with_rag_logging(
+            stream,
+            user_id=user_id,
             journal_id=request.journal_id,
-            user_id=user_id
+            is_journal=request.is_journal,
         ),
         media_type="text/event-stream"
     )
@@ -49,16 +87,12 @@ async def get_chat_history_endpoint(journal_id: str, current_user: dict = Depend
             raise HTTPException(status_code=400, detail="유효하지 않은 일기 ID 포맷입니다.")
 
         # 1. 일기의 소유주 검증 (조회 권한 체크)
-        journal = db.journals.find_one({"_id": journal_oid}, {"user_id": 1})
+        journal = db.journals.find_one({"_id": journal_oid, "user_id": user_id}, {"user_id": 1})
         if not journal:
             raise HTTPException(status_code=404, detail="해당 일기를 찾을 수 없습니다.")
-        
-        owner_id = journal.get("user_id")
-        if owner_id != user_id:
-            raise HTTPException(status_code=403, detail="해당 일기 성찰 대화에 접근할 권한이 없습니다.")
 
         # 2. 대화 이력 로드
-        history = rag_service.get_chat_history(journal_id)
+        history = rag_service.get_chat_history(journal_id, user_id=user_id)
         
         # 과거 대화의 sources 내부에 content_ko 또는 summary_ko 가 누락된 경우 실시간 번역/요약 복구
         import asyncio
@@ -92,11 +126,17 @@ async def get_chat_history_endpoint(journal_id: str, current_user: dict = Depend
                 if msg_id:
                     try:
                         db.chat_messages.update_one(
-                            {"_id": msg_id},
+                            {"_id": msg_id, "journal_id": journal_id, "user_id": user_id},
                             {"$set": {"sources": msg_doc["sources"]}}
                         )
                     except Exception as cache_err:
-                        print(f"Error caching translations to database: {cache_err}", flush=True)
+                        log_event(
+                            "chat_history_translation_cache_error",
+                            level="warning",
+                            user_hash=safe_hash(user_id),
+                            journal_hash=safe_hash(journal_id),
+                            error_type=type(cache_err).__name__,
+                        )
 
         formatted_history = []
         for msg in history:
@@ -110,5 +150,11 @@ async def get_chat_history_endpoint(journal_id: str, current_user: dict = Depend
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[chat] history error: {e}", flush=True)
+        log_event(
+            "chat_history_error",
+            level="error",
+            user_hash=safe_hash(user_id),
+            journal_hash=safe_hash(journal_id),
+            error_type=type(e).__name__,
+        )
         raise HTTPException(status_code=500, detail="대화 이력 조회 중 오류가 발생했습니다.")

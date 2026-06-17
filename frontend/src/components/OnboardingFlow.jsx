@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowRight, BookOpen, MessageSquare, Sparkles, BrainCircuit } from 'lucide-react';
+import { markOnboardingComplete } from '../utils/onboardingState';
 
 const STEPS = [
   {
@@ -7,7 +8,7 @@ const STEPS = [
     emoji: '🌌',
     title: 'Logos-Log에 오신 것을 환영합니다',
     description:
-      'AI와 함께하는 깊이 있는 자아 탐구 여정이 시작됩니다.\n단순한 일기 앱이 아닙니다. 당신의 삶의 의미를 과학적으로 분석해드립니다.',
+      '오늘의 기록이 가치 카드가 되고, 가치 카드는 이번 주의 작은 실험으로 이어집니다.\n분석에서 멈추지 않고 내 선택이 실제로 도움이 됐는지 함께 돌아봅니다.',
     cta: '시작하기',
     visual: (
       <div style={{ fontSize: '4rem', textAlign: 'center', marginBottom: '8px', filter: 'drop-shadow(0 0 20px rgba(99,102,241,0.5))' }}>
@@ -25,8 +26,8 @@ const STEPS = [
     features: [
       {
         icon: <BookOpen size={18} color="#a5b4fc" />,
-        title: '심리학 논문 기반 분석',
-        desc: '498편의 학술 논문이 당신의 감정을 과학적으로 해석합니다',
+        title: '근거가 보이는 성찰 대화',
+        desc: '심리학 연구 발췌를 바탕으로 생각을 더 선명하게 정리합니다',
         color: 'rgba(99,102,241,0.15)',
         border: 'rgba(99,102,241,0.3)',
       },
@@ -39,8 +40,8 @@ const STEPS = [
       },
       {
         icon: <Sparkles size={18} color="#f9a8d4" />,
-        title: '의미 네트워크 성장',
-        desc: '아하 모먼트가 쌓여 당신만의 가치 별자리가 만들어집니다',
+        title: '작은 실험과 회고',
+        desc: '저장한 가치 카드가 이번 주에 해볼 행동과 나중의 회고로 이어집니다',
         color: 'rgba(236,72,153,0.12)',
         border: 'rgba(236,72,153,0.3)',
       },
@@ -51,7 +52,7 @@ const STEPS = [
     emoji: '📝',
     title: '첫 번째 성찰을 시작해볼까요?',
     description:
-      '오늘 하루 어떤 감정을 느꼈나요?\n짧은 메모라도 좋습니다. AI가 함께 깊이 탐구해드릴게요.',
+      '오늘 하루 어떤 감정을 느꼈나요?\n짧은 메모라도 좋습니다. 기록을 남기면 성찰 대화와 가치 카드로 이어갈 수 있어요.',
     cta: '첫 일기 작성하기',
     visual: (
       <div style={{ fontSize: '3.5rem', textAlign: 'center', marginBottom: '8px' }}>
@@ -68,25 +69,23 @@ const OnboardingFlow = ({ onComplete }) => {
   const currentStep = STEPS[step];
   const isLast = step === STEPS.length - 1;
 
+  const complete = () => {
+    setIsExiting(true);
+    setTimeout(() => {
+      markOnboardingComplete();
+      onComplete();
+    }, 350);
+  };
+
   const handleNext = () => {
     if (isLast) {
-      setIsExiting(true);
-      setTimeout(() => {
-        localStorage.setItem('onboarding_done', 'true');
-        onComplete();
-      }, 350);
+      complete();
     } else {
       setStep(s => s + 1);
     }
   };
 
-  const handleSkip = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      localStorage.setItem('onboarding_done', 'true');
-      onComplete();
-    }, 350);
-  };
+  const handleSkip = complete;
 
   return (
     <div

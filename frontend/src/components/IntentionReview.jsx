@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Check, X } from 'lucide-react';
-import { apiUrl } from '../api';
+import { useCallback, useState, useEffect } from 'react';
+import { AlertTriangle, Check, X } from 'lucide-react';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 /**
  * 돌아볼 다짐 - insight→행동→결과 루프의 닫는 고리.
@@ -13,25 +14,31 @@ const IntentionReview = ({ token, onChange }) => {
   const [drafts, setDrafts] = useState({}); // id -> { outcome, helpfulness }
   const [busyId, setBusyId] = useState(null);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(apiUrl('/api/intentions/due'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) setDue(await res.json());
-      } catch (err) {
-        console.error('Error loading due intentions:', err);
-      } finally {
-        setLoaded(true);
-      }
-    };
-    load();
+  const loadDueIntentions = useCallback(async () => {
+    setError('');
+    try {
+      const res = await fetchWithAuth('/api/intentions/due', { token });
+      if (!res.ok) throw await apiResponseError(res, '돌아볼 다짐을 불러오지 못했습니다.');
+      const data = await responseJsonOrNull(res);
+      setDue(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('Error loading due intentions:', err);
+      setError(err.message || '돌아볼 다짐을 불러오지 못했습니다.');
+    } finally {
+      setLoaded(true);
+    }
   }, [token]);
 
-  const setDraft = (id, patch) =>
+  useEffect(() => {
+    loadDueIntentions();
+  }, [loadDueIntentions]);
+
+  const setDraft = (id, patch) => {
+    setError('');
     setDrafts((d) => ({ ...d, [id]: { outcome: '', helpfulness: null, ...d[id], ...patch } }));
+  };
 
   const remove = (id) => setDue((list) => list.filter((it) => it.id !== id));
 
@@ -39,18 +46,31 @@ const IntentionReview = ({ token, onChange }) => {
     const draft = drafts[id] || {};
     if (!draft.outcome || !draft.outcome.trim()) return;
     setBusyId(id);
+    setError('');
     try {
-      const res = await fetch(apiUrl(`/api/intentions/${id}/reflect`), {
+      const res = await fetchWithAuth(`/api/intentions/${id}/reflect`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ outcome: draft.outcome.trim(), helpfulness: draft.helpfulness }),
+        token,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Logos-Action-Source': 'meaning_change_review',
+        },
+        body: JSON.stringify({
+          outcome: draft.outcome.trim(),
+          helpfulness: draft.helpfulness,
+          source: 'meaning_change_review',
+        }),
       });
-      if (!res.ok) throw new Error('결과 기록 실패');
+      if (!res.ok) throw await apiResponseError(res, '결과 기록 중 오류가 발생했습니다.');
       remove(id);
       onChange && onChange();
     } catch (err) {
-      console.error('Error reflecting intention:', err);
-      alert('결과 기록 중 오류가 발생했습니다.');
+      console.warn('Error reflecting intention:', err);
+      if (err.status === 409) {
+        remove(id);
+        onChange && onChange();
+      }
+      setError(err.message || '결과 기록 중 오류가 발생했습니다.');
     } finally {
       setBusyId(null);
     }
@@ -58,22 +78,32 @@ const IntentionReview = ({ token, onChange }) => {
 
   const dismiss = async (id) => {
     setBusyId(id);
+    setError('');
     try {
-      const res = await fetch(apiUrl(`/api/intentions/${id}/dismiss`), {
+      const res = await fetchWithAuth(`/api/intentions/${id}/dismiss`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        token,
+        headers: {
+          'X-Logos-Action-Source': 'meaning_change_review',
+        },
       });
-      if (!res.ok) throw new Error('접어두기 실패');
+      if (!res.ok) throw await apiResponseError(res, '접어두기 중 오류가 발생했습니다.');
       remove(id);
       onChange && onChange();
     } catch (err) {
-      console.error('Error dismissing intention:', err);
+      console.warn('Error dismissing intention:', err);
+      if (err.status === 409) {
+        remove(id);
+        onChange && onChange();
+      }
+      setError(err.message || '접어두기 중 오류가 발생했습니다.');
     } finally {
       setBusyId(null);
     }
   };
 
-  if (!loaded || due.length === 0) return null;
+  if (!loaded) return null;
+  if (due.length === 0 && !error) return null;
 
   return (
     <div className="glass-panel animate-fade-in" style={{ padding: '20px', borderRadius: '14px', marginBottom: '20px', border: '1px solid rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.05)' }}>
@@ -81,6 +111,28 @@ const IntentionReview = ({ token, onChange }) => {
       <p style={{ margin: '0 0 16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
         지난 성찰에서 세운 다짐이에요. 그 선택, 실제로 해보니 어땠나요? (지금 아니어도 괜찮아요.)
       </p>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: due.length > 0 ? '12px' : 0,
+            padding: '9px 11px',
+            borderRadius: '8px',
+            border: '1px solid rgba(245,158,11,0.35)',
+            background: 'rgba(245,158,11,0.08)',
+            color: 'var(--text-main)',
+            fontSize: '0.8rem',
+            lineHeight: 1.45,
+          }}
+        >
+          <AlertTriangle size={15} color="#f59e0b" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {due.map((it) => {
         const draft = drafts[it.id] || { outcome: '', helpfulness: null };

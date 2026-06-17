@@ -2,6 +2,7 @@ PyMuPDF
 pydantic
 tqdm
 requests
+httpx
 langchain
 langchain-text-splitters
 langchain-openai

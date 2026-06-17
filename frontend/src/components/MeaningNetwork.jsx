@@ -1,7 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Loader2, Award, Calendar, Compass, TrendingUp } from 'lucide-react';
 import MeaningChange from './MeaningChange';
-import { apiUrl } from '../api';
+import RecommendedExperiment from './RecommendedExperiment';
+import {
+  applyRecommendedExperimentOverride,
+  buildRecommendedExperiment,
+  describeCardRecommendationRole,
+} from '../utils/recommendedExperiment';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 const EMOTION_FILTERS = [
   { key: 'all', label: '전체 은하', emoji: '🌌', color: 'var(--accent-primary)' },
@@ -12,12 +19,23 @@ const EMOTION_FILTERS = [
   { key: 'tired', label: '피로', emoji: '😴', color: '#f59e0b' } // Amber
 ];
 
+const THEME_COLORS = [
+  '#6366f1', // Indigo (자아/성찰)
+  '#10b981', // Emerald (성장/치유)
+  '#f59e0b', // Amber (동기/에너지)
+  '#ec4899', // Pink (관계/공감)
+  '#06b6d4'  // Cyan (진리/지성)
+];
+
 const MeaningNetwork = ({ token }) => {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNode, setSelectedNode] = useState(null);
   const [activeFilter, setActiveFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('explore'); // 'explore' | 'change'
+  const [recommendationOverride, setRecommendationOverride] = useState(null);
+  const [isRecommendationRefreshing, setIsRecommendationRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
   
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(null);
@@ -44,56 +62,65 @@ const MeaningNetwork = ({ token }) => {
   const nodes3DRef = useRef([]);
   const backgroundStarsRef = useRef([]);
   const activeFilterRef = useRef('all');
+  const baseRecommendedExperiment = useMemo(() => buildRecommendedExperiment(cards), [cards]);
+  const recommendedExperiment = useMemo(
+    () => applyRecommendedExperimentOverride(baseRecommendedExperiment, recommendationOverride, cards),
+    [baseRecommendedExperiment, recommendationOverride, cards]
+  );
+
+  const handleSelectRecommendationCard = (card) => {
+    if (!card) return;
+    setSelectedNode(card);
+    if (activeFilter !== 'all' && card.emotion !== activeFilter) {
+      setActiveFilter('all');
+    }
+  };
 
   // 필터 상태 변경 시 Ref 동기화
   useEffect(() => {
     activeFilterRef.current = activeFilter;
   }, [activeFilter]);
 
-  const themeColors = [
-    '#6366f1', // Indigo (자아/성찰)
-    '#10b981', // Emerald (성장/치유)
-    '#f59e0b', // Amber (동기/에너지)
-    '#ec4899', // Pink (관계/공감)
-    '#06b6d4'  // Cyan (진리/지성)
-  ];
-
-  // API 데이터 패치
-  useEffect(() => {
-    const fetchValueCards = async () => {
-      try {
-        const response = await fetch(apiUrl('/api/value-cards'), {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCards(data);
-          if (data.length > 0) {
-            setSelectedNode(data[0]);
-            initialize3DData(data);
-          }
-        }
-      } catch (err) {
-        console.error('Error fetching value cards:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchValueCards();
-    
-    // 컴포넌트 언마운트 시 애니메이션 클린업
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
+  const fetchRecommendationOverride = useCallback(async (refresh = false) => {
+    if (!token) return null;
+    setIsRecommendationRefreshing(refresh);
+    try {
+      const suffix = refresh ? '?refresh=true' : '';
+      const response = await fetchWithAuth(`/api/value-cards/recommended-experiment${suffix}`, { token });
+      if (!response.ok) throw await apiResponseError(response, '추천 실험을 불러오지 못했습니다.');
+      const data = await responseJsonOrNull(response);
+      setRecommendationOverride(data);
+      return data;
+    } catch (err) {
+      console.warn('LLM experiment recommendation unavailable:', err);
+      setRecommendationOverride(null);
+      return null;
+    } finally {
+      setIsRecommendationRefreshing(false);
+    }
   }, [token]);
 
+  useEffect(() => {
+    if (!token || cards.length === 0) {
+      setRecommendationOverride(null);
+      return;
+    }
+
+    let isActive = true;
+    const fetchRecommendation = async () => {
+      const data = await fetchRecommendationOverride(false);
+      if (!isActive || !data) return;
+      setRecommendationOverride(data);
+    };
+
+    fetchRecommendation();
+    return () => {
+      isActive = false;
+    };
+  }, [token, cards, fetchRecommendationOverride]);
+
   // 3D 공간 데이터 초기화
-  const initialize3DData = (cardsData) => {
+  const initialize3DData = useCallback((cardsData) => {
     // 1. 배경용 성간 별가루(Background Stars) 생성
     const stars = [];
     for (let i = 0; i < 120; i++) {
@@ -137,7 +164,7 @@ const MeaningNetwork = ({ token }) => {
         x: clusterSphereRadius * Math.sin(phi) * Math.cos(theta),
         y: clusterSphereRadius * Math.sin(phi) * Math.sin(theta),
         z: clusterSphereRadius * Math.cos(phi),
-        colorIndex: index % themeColors.length
+        colorIndex: index % THEME_COLORS.length
       };
     });
 
@@ -169,14 +196,51 @@ const MeaningNetwork = ({ token }) => {
         base3D: { x, y, z }, // 초기 3D 원본 좌표
         rotated3D: { x, y, z }, // 회전 후 3D 좌표
         projected2D: { x: 0, y: 0, visible: false }, // 화면에 투영된 2D 좌표
-        color: themeColors[center.colorIndex],
+        color: THEME_COLORS[center.colorIndex],
         colorIndex: center.colorIndex,
         filterAlpha: 1.0 // 필터 전이(Transition) 애니메이션용 알파값
       });
     });
 
     nodes3DRef.current = nodes;
-  };
+  }, []);
+
+  // API 데이터 패치
+  useEffect(() => {
+    const fetchValueCards = async () => {
+      setLoadError('');
+      try {
+        const response = await fetchWithAuth('/api/value-cards', { token });
+        if (!response.ok) {
+          throw await apiResponseError(response, '가치 카드를 불러오지 못했습니다.');
+        }
+
+        const data = await responseJsonOrNull(response);
+        const cardsData = Array.isArray(data) ? data : [];
+        setCards(cardsData);
+        if (cardsData.length > 0) {
+          setSelectedNode(cardsData[0]);
+          initialize3DData(cardsData);
+        }
+      } catch (err) {
+        console.warn('Error fetching value cards:', err);
+        setCards([]);
+        setSelectedNode(null);
+        setLoadError(err.message || '가치 카드를 불러오지 못했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchValueCards();
+
+    // 컴포넌트 언마운트 시 애니메이션 클린업
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [token, initialize3DData]);
 
   // Canvas 드로잉 및 3D 투영 애니메이션 루프
   useEffect(() => {
@@ -750,7 +814,13 @@ const MeaningNetwork = ({ token }) => {
           })}
         </div>
 
-        {activeTab === 'change' ? (
+        {loadError ? (
+        <div className="network-empty-state" role="alert">
+          <div className="network-empty-icon">⚠️</div>
+          <h3>의미 네트워크를 불러오지 못했습니다</h3>
+          <p>{loadError}</p>
+        </div>
+      ) : activeTab === 'change' ? (
           <MeaningChange token={token} />
         ) : cards.length === 0 ? (
         <div className="network-empty-state">
@@ -762,6 +832,16 @@ const MeaningNetwork = ({ token }) => {
           </p>
         </div>
       ) : (
+        <>
+        <RecommendedExperiment
+          token={token}
+          recommendation={recommendedExperiment}
+          selectedNode={selectedNode}
+          onSelectCard={handleSelectRecommendationCard}
+          onRefresh={() => fetchRecommendationOverride(true)}
+          isRefreshing={isRecommendationRefreshing}
+          source="meaning_network"
+        />
         <div className="network-layout">
           {/* 좌측: 3D 별자리 은하계 드래그 뷰포트 */}
           <div className="network-graph-panel 3d-viewport-panel" style={{ height: '500px', position: 'relative' }}>
@@ -824,7 +904,7 @@ const MeaningNetwork = ({ token }) => {
               style={{ cursor: 'grab', width: '100%', height: '100%', display: 'block', borderRadius: '16px' }}
             />
             <div className="graph-instructions instruction-3d">
-              <span>🖱️ 드래그하여 은하계를 3D 회전시키고, 노드를 클릭해 성찰을 감상하세요.</span>
+              <span>드래그하여 회전하고, 노드를 클릭해 이번 실험의 근거를 확인하세요.</span>
             </div>
           </div>
 
@@ -847,6 +927,11 @@ const MeaningNetwork = ({ token }) => {
               
               <div className="detail-card-insight-section">
                 <p className="detail-card-insight">"{selectedNode.insight}"</p>
+              </div>
+
+              <div className="detail-card-recommendation-link">
+                <span>현재 추천과의 연결</span>
+                <p>{describeCardRecommendationRole(selectedNode, recommendedExperiment)}</p>
               </div>
 
               <div className="detail-card-footer" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -898,6 +983,7 @@ const MeaningNetwork = ({ token }) => {
             </div>
           )}
         </div>
+        </>
         )}
         </>
       )}

@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Calendar, Award, MessageSquare, Globe, ChevronLeft, ChevronRight, BookOpen, Clock, Activity, Flame, Star } from 'lucide-react';
 import WeeklyReport from './WeeklyReport';
-import { apiUrl } from '../api';
+import DashboardActionLoop from './DashboardActionLoop';
+import { fetchWithAuth } from '../api';
+import { apiResponseError, responseJsonOrNull } from '../utils/apiErrors';
 
 const EMOTION_COLORS = {
   happy:    { color: '#10b981', emoji: '😊', label: '행복',     bg: 'rgba(16, 185, 129, 0.15)' },
@@ -30,6 +32,7 @@ const X = ({ size = 16, color = 'currentColor' }) => (
 
 const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJournal, onNavigateToMode, onNewJournalWithDate }) => {
   const [valueCardsCount, setValueCardsCount] = useState(0);
+  const [cardsError, setCardsError] = useState('');
   const [isCardsLoading, setIsCardsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedJournal, setSelectedJournal] = useState(null);
@@ -42,15 +45,16 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       if (!token) return;
       try {
         setIsCardsLoading(true);
-        const cardsRes = await fetch(apiUrl('/api/value-cards/count'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (cardsRes.ok) {
-          const cardsData = await cardsRes.json();
-          setValueCardsCount(cardsData.count || 0);
+        setCardsError('');
+        const cardsRes = await fetchWithAuth('/api/value-cards/count', { token });
+        if (!cardsRes.ok) {
+          throw await apiResponseError(cardsRes, '가치 카드 수를 불러오지 못했습니다.');
         }
+        const cardsData = await responseJsonOrNull(cardsRes);
+        setValueCardsCount(cardsData?.count || 0);
       } catch (err) {
-        console.error('Error fetching dashboard data:', err);
+        console.warn('Error fetching dashboard data:', err);
+        setCardsError(err.message || '가치 카드 수를 불러오지 못했습니다.');
       } finally {
         setIsCardsLoading(false);
       }
@@ -59,7 +63,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
   }, [token]);
 
   // Streak 계산
-  const calculateStreak = () => {
+  const calculateStreak = useCallback(() => {
     if (journals.length === 0) return 0;
     const writtenDates = [...new Set(journals.map(j => {
       const d = new Date(j.created_at);
@@ -81,7 +85,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       } else break;
     }
     return streak;
-  };
+  }, [journals]);
 
   const streak = calculateStreak();
 
@@ -95,7 +99,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
       if (newBadge) setBadgePopup(newBadge);
     }
     prevStreakRef.current = currentStreak;
-  }, [journals]);
+  }, [journals, calculateStreak]);
 
   // 감정 비율 계산
   const getEmotionRatios = () => {
@@ -177,7 +181,14 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
   return (
     <div className="dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%', overflowY: 'auto', padding: '10px 5px', scrollbarWidth: 'thin' }}>
 
-      {/* 1. 상단 주요 통계 카드 */}
+      {/* 1. 의미 행동 루프 */}
+      <DashboardActionLoop
+        token={token}
+        onNewJournal={() => onNewJournalWithDate ? onNewJournalWithDate() : onNavigateToMode('editor')}
+        onNavigateToNetwork={() => onNavigateToMode('network')}
+      />
+
+      {/* 2. 상단 주요 통계 카드 */}
       <div className="dashboard-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
 
         {/* Streak 카드 (애니메이션 강화) */}
@@ -222,14 +233,19 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
           <div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>성찰 가치 노드</p>
             <h3 style={{ fontSize: '1.6rem', fontWeight: '700', marginTop: '2px' }}>
-              {valueCardsCount} <span style={{ fontSize: '0.95rem', fontWeight: '500', color: 'var(--text-muted)' }}>개 활성화</span>
+              {cardsError ? '확인 불가' : valueCardsCount} {!cardsError && <span style={{ fontSize: '0.95rem', fontWeight: '500', color: 'var(--text-muted)' }}>개 활성화</span>}
             </h3>
+            {cardsError && (
+              <p style={{ fontSize: '0.68rem', color: '#fca5a5', margin: '2px 0 0 0', fontWeight: '600' }}>
+                잠시 후 다시 확인해 주세요.
+              </p>
+            )}
           </div>
         </div>
 
       </div>
 
-      {/* 2. 뱃지 진열장 */}
+      {/* 3. 뱃지 진열장 */}
       <div className="glass-panel" style={{ padding: '20px 24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <Star size={16} color="#f59e0b" />
@@ -260,10 +276,10 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
         </div>
       </div>
 
-      {/* 3. 주간 AI 성찰 리포트 */}
+      {/* 4. 주간 성찰 리포트 */}
       <WeeklyReport token={token} />
 
-      {/* 4. 달력 & 감정 통계 */}
+      {/* 5. 달력 & 감정 통계 */}
       <div className="dashboard-calendar-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 2fr) minmax(240px, 1fr))', gap: '20px', alignItems: 'start' }}>
 
         {/* 감정 캘린더 */}
@@ -337,7 +353,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
 
       </div>
 
-      {/* 5. 최근 일기 피드 */}
+      {/* 6. 최근 일기 피드 */}
       <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -409,7 +425,7 @@ const Dashboard = ({ token, journals = [], isJournalsLoading = false, onSelectJo
               <button onClick={() => setSelectedJournal(null)} style={{ background: 'none', border: '1px solid var(--border-glass)', borderRadius: '100px', padding: '8px 18px', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}>닫기</button>
               <button onClick={() => { onSelectJournal(selectedJournal); setSelectedJournal(null); }} style={{ background: 'var(--accent-gradient)', border: 'none', borderRadius: '100px', padding: '8px 20px', color: '#ffffff', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(99,102,241,0.3)' }}>
                 <MessageSquare size={14} />
-                <span>AI 성찰 분석실 개시</span>
+                <span>성찰 대화 이어가기</span>
               </button>
             </div>
           </div>
