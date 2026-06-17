@@ -9,7 +9,7 @@ jobs:
     name: "Step 1: Warm Cache"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/cache@v4
         with:
           path: assignments/week8/node_modules
@@ -28,7 +28,7 @@ jobs:
     outputs:
       elapsed: ${{ steps.measure.outputs.elapsed }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: '20.x'
@@ -52,7 +52,7 @@ jobs:
       elapsed: ${{ steps.measure.outputs.elapsed }}
       cache-hit: ${{ steps.cache.outputs.cache-hit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Restore cache
         id: cache
         uses: actions/cache@v4
