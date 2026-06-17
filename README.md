@@ -55,8 +55,8 @@
 | 보안 | [Dependabot config](.github/dependabot.yml): frontend npm, backend pip, GitHub Actions |
 | 관측성 | 구조화 JSON 로그 + `X-Request-ID`, [DORA metrics workflow](https://github.com/alsrjs951/Logos-Log/actions/workflows/metrics.yml), [dashboard source](dashboard/index.html) |
 | 운영 문서 | [RUNBOOK.md](RUNBOOK.md), [CHANGELOG.md](CHANGELOG.md), [RETROSPECTIVE.md](RETROSPECTIVE.md) |
-| 릴리스 | [`v1.0.0` GitHub Release](https://github.com/alsrjs951/Logos-Log/releases/tag/v1.0.0) — 최종 main 병합 후 생성 |
-| 3분 이내 영상 데모 | `logos-log-demo-v1.0.0.mp4`를 `v1.0.0` Release asset으로 업로드 |
+| 릴리스 | [`v1.0.0` GitHub Release](https://github.com/alsrjs951/Logos-Log/releases/tag/v1.0.0) |
+| 3분 이내 영상 데모 | `logos-log-demo-v1.0.0.mp4`를 `v1.0.0` Release asset으로 업로드 예정 |
 
 최종 smoke test는 `RUNBOOK.md`의 배포 체크리스트를 따릅니다. 백엔드 헬스체크는 외부 DB나 LLM에 의존하지 않는 liveness probe로 유지합니다.
 

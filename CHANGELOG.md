@@ -23,10 +23,9 @@ All notable changes to Logos-Log are documented here.
 
 - Production frontend target: https://frontend-eight-nu-21.vercel.app
 - Production backend health target: `${RENDER_BACKEND_URL}/health`
+- Release tag: `v1.0.0`
 - Release asset expected for final submission: `logos-log-demo-v1.0.0.mp4`
 
 ### Known Follow-ups
 
-- Create the annotated `v1.0.0` tag after the final main merge.
 - Upload the under-3-minute demo video to the `v1.0.0` GitHub Release.
-- Confirm GitHub Pages is enabled if the static DORA dashboard should be public.
