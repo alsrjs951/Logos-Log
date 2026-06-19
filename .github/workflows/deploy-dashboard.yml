@@ -41,7 +41,7 @@ jobs:
           echo "[Open Dashboard](https://alsrjs951.github.io/Logos-Log/dashboard/)" >> _site/README.md
 
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site/
 
