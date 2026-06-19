@@ -24,8 +24,8 @@ All notable changes to Logos-Log are documented here.
 - Production frontend target: https://frontend-eight-nu-21.vercel.app
 - Production backend health target: `${RENDER_BACKEND_URL}/health`
 - Release tag: `v1.0.0`
-- Release asset expected for final submission: `logos-log-demo-v1.0.0.mp4`
+- Release asset: `logos-log-demo-v1.0.0.mp4`
 
 ### Known Follow-ups
 
-- Upload the under-3-minute demo video to the `v1.0.0` GitHub Release.
+- Replace the release demo video only if a revised walkthrough is recorded.

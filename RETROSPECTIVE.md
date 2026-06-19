@@ -32,5 +32,4 @@
 
 - Improve Faithfulness with sentence-level evidence checks that do not destabilize answer relevancy.
 - Add a lightweight backend integration test gate once CI dependency install time is acceptable.
-- Publish the DORA dashboard through GitHub Pages after Pages is enabled for the repository.
-- Attach the final under-3-minute demo video to the `v1.0.0` GitHub Release.
+- Keep the DORA dashboard and release demo video current when the final walkthrough changes.

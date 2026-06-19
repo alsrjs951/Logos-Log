@@ -56,7 +56,7 @@
 | 관측성 | 구조화 JSON 로그 + `X-Request-ID`, [DORA metrics workflow](https://github.com/alsrjs951/Logos-Log/actions/workflows/metrics.yml), [dashboard source](dashboard/index.html) |
 | 운영 문서 | [RUNBOOK.md](RUNBOOK.md), [CHANGELOG.md](CHANGELOG.md), [RETROSPECTIVE.md](RETROSPECTIVE.md) |
 | 릴리스 | [`v1.0.0` GitHub Release](https://github.com/alsrjs951/Logos-Log/releases/tag/v1.0.0) |
-| 3분 이내 영상 데모 | `logos-log-demo-v1.0.0.mp4`를 `v1.0.0` Release asset으로 업로드 예정 |
+| 3분 이내 영상 데모 | [logos-log-demo-v1.0.0.mp4](https://github.com/alsrjs951/Logos-Log/releases/download/v1.0.0/logos-log-demo-v1.0.0.mp4) — `v1.0.0` Release asset |
 
 최종 smoke test는 `RUNBOOK.md`의 배포 체크리스트를 따릅니다. 백엔드 헬스체크는 외부 DB나 LLM에 의존하지 않는 liveness probe로 유지합니다.
 
