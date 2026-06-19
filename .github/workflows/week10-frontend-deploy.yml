@@ -61,7 +61,7 @@ jobs:
 
       - name: Comment PR with Preview URL
         if: env.HAS_VERCEL_SECRETS == 'true' && github.event_name == 'pull_request' && steps.vercel-deploy.outputs.preview-url != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const url = '${{ steps.vercel-deploy.outputs.preview-url }}';
